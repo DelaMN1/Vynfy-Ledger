@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block page_title %}Dashboard{% endblock %}
+{% block content %}
+  <form class="mb-6 flex gap-3" hx-get="{{ url_for('dashboard.overview') }}" hx-target="#dashboard-content" hx-push-url="true">
+    <select class="rounded-full border-slate-300 bg-white px-4 py-2 text-sm" name="range">
+      <option value="month" {% if range_key == 'month' %}selected{% endif %}>This month</option>
+      <option value="quarter" {% if range_key == 'quarter' %}selected{% endif %}>Last 90 days</option>
+      <option value="year" {% if range_key == 'year' %}selected{% endif %}>This year</option>
+    </select>
+    <button class="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white" type="submit">Refresh</button>
+  </form>
+  <div id="dashboard-content">
+    {% include "dashboard/_dashboard_content.html" %}
+  </div>
+{% endblock %}

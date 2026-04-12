@@ -1,0 +1,11 @@
+{% if pagination.pages > 1 %}
+  <div class="mt-6 flex items-center gap-2">
+    {% if pagination.has_prev %}
+      <a class="rounded-full border border-slate-300 px-4 py-2 text-sm" href="?page={{ pagination.prev_num }}">Previous</a>
+    {% endif %}
+    <span class="text-sm text-slate-500">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+    {% if pagination.has_next %}
+      <a class="rounded-full border border-slate-300 px-4 py-2 text-sm" href="?page={{ pagination.next_num }}">Next</a>
+    {% endif %}
+  </div>
+{% endif %}

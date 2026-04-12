@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block page_title %}Reconciliation{% endblock %}
+{% block content %}
+  <div class="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+    <div class="rounded-3xl bg-white p-6 shadow-sm">
+      <h3 class="text-xl font-semibold">Start a reconciliation session</h3>
+      <form class="mt-6 space-y-4" method="post" action="{{ url_for('reconciliation.start') }}">
+        {{ form.hidden_tag() }}
+        <div>{{ form.account_id.label(class="mb-2 block text-sm font-medium") }}{{ form.account_id(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+        <div class="grid gap-4 md:grid-cols-2">
+          <div>{{ form.period_start.label(class="mb-2 block text-sm font-medium") }}{{ form.period_start(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+          <div>{{ form.period_end.label(class="mb-2 block text-sm font-medium") }}{{ form.period_end(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+        </div>
+        <div>{{ form.statement_ending_balance.label(class="mb-2 block text-sm font-medium") }}{{ form.statement_ending_balance(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+        <div>{{ form.notes.label(class="mb-2 block text-sm font-medium") }}{{ form.notes(class="w-full rounded-2xl border-slate-200 px-4 py-3", rows="4") }}</div>
+        <button class="rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white" type="submit">Start reconciliation</button>
+      </form>
+    </div>
+    <div class="rounded-3xl bg-white p-6 shadow-sm">
+      {% if active_session %}
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-slate-500">Active session</p>
+            <h3 class="mt-2 text-2xl font-semibold">{{ active_session.account.name }}</h3>
+            <p class="mt-2 text-slate-500">{{ active_session.period_start }} to {{ active_session.period_end }}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-sm text-slate-500">Variance</p>
+            <p class="mt-2 text-2xl font-semibold">{{ active_session.difference|currency }}</p>
+          </div>
+        </div>
+        <form class="mt-6" method="post" action="{{ url_for('reconciliation.finalize', session_id=active_session.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="space-y-3">
+            {% for item in transactions %}
+              <label class="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3">
+                <span>
+                  <input class="mr-3" type="checkbox" name="transaction_ids" value="{{ item.id }}">
+                  {{ item.title }}
+                </span>
+                <span>{{ item.amount|currency }}</span>
+              </label>
+            {% else %}
+              <p class="text-slate-500">No transactions found for this period.</p>
+            {% endfor %}
+          </div>
+          {% if current_user.is_admin %}
+            <button class="mt-6 rounded-full bg-emerald-600 px-4 py-3 text-sm font-medium text-white" type="submit">Finalize reconciliation</button>
+          {% endif %}
+        </form>
+      {% else %}
+        <p class="text-slate-500">No reconciliation session selected yet.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

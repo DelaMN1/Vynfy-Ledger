@@ -1,0 +1,16 @@
+body {
+  font-family: "Segoe UI", "Inter", sans-serif;
+}
+
+.sidebar-link {
+  display: block;
+  border-radius: 9999px;
+  padding: 0.75rem 1rem;
+  color: rgb(203 213 225);
+  transition: 160ms ease;
+}
+
+.sidebar-link:hover {
+  background: rgba(148, 163, 184, 0.16);
+  color: white;
+}

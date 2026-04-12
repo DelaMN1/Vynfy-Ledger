@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block page_title %}Pending Approvals{% endblock %}
+{% block content %}
+  <div class="rounded-3xl bg-white p-6 shadow-sm">
+    <h3 class="text-xl font-semibold">Submitted Expenses Awaiting Review</h3>
+    <div class="mt-6 space-y-3">
+      {% for item in items %}
+        <a class="block rounded-2xl border border-slate-200 px-4 py-4 hover:bg-slate-50" href="{{ url_for('transactions.expense_detail', transaction_id=item.id) }}">
+          <div class="flex items-center justify-between"><p class="font-medium">{{ item.title }}</p><p>{{ item.amount|currency }}</p></div>
+          <p class="mt-1 text-sm text-slate-500">{{ item.counterparty or "-" }} · submitted by {{ item.submitted_by.full_name }}</p>
+        </a>
+      {% else %}
+        <p class="text-slate-500">No pending approvals.</p>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}

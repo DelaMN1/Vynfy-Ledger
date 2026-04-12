@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block page_title %}Settings · Accounts{% endblock %}
+{% block content %}
+  <div class="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
+    <form class="rounded-3xl bg-white p-6 shadow-sm" method="post">
+      {{ form.hidden_tag() }}
+      <h3 class="text-xl font-semibold">New Account</h3>
+      <div class="mt-5 space-y-4">
+        <div>{{ form.name.label(class="mb-2 block text-sm font-medium") }}{{ form.name(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+        <div>{{ form.type.label(class="mb-2 block text-sm font-medium") }}{{ form.type(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+        <div>{{ form.opening_balance.label(class="mb-2 block text-sm font-medium") }}{{ form.opening_balance(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+        <div>{{ form.currency_code.label(class="mb-2 block text-sm font-medium") }}{{ form.currency_code(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+        <button class="rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white" type="submit">Save account</button>
+      </div>
+    </form>
+    <div class="rounded-3xl bg-white p-6 shadow-sm">
+      <h3 class="text-xl font-semibold">Accounts</h3>
+      <div class="mt-6 space-y-3">
+        {% for item in accounts %}
+          <div class="rounded-2xl border border-slate-200 px-4 py-4">
+            <div class="flex items-center justify-between"><p class="font-medium">{{ item.name }}</p><p class="text-sm text-slate-500">{{ item.currency_code }}</p></div>
+            <p class="mt-2 text-sm text-slate-500">{{ item.type|replace('_', ' ')|title }} · Opening {{ item.opening_balance|currency }}</p>
+          </div>
+        {% else %}
+          <p class="text-slate-500">No accounts yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+{% endblock %}

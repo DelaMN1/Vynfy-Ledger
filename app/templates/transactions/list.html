@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block page_title %}{{ page_title }}{% endblock %}
+{% block content %}
+  <div class="rounded-3xl bg-white p-6 shadow-sm">
+    <form class="grid gap-4 md:grid-cols-5" method="get">
+      {{ filter_form.hidden_tag() }}
+      <div>{{ filter_form.q.label(class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500") }}{{ filter_form.q(class="w-full rounded-2xl border-slate-200 px-4 py-3", placeholder="Search title, source, ref") }}</div>
+      <div>{{ filter_form.status.label(class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500") }}{{ filter_form.status(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+      <div>{{ filter_form.category_id.label(class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500") }}{{ filter_form.category_id(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+      <div>{{ filter_form.account_id.label(class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500") }}{{ filter_form.account_id(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+      <div class="flex items-end gap-3">
+        <button class="rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white" type="submit">Apply</button>
+        <a class="rounded-full border border-slate-300 px-4 py-3 text-sm" href="{{ request.path }}">Reset</a>
+      </div>
+    </form>
+    <div class="mt-6 flex flex-wrap gap-3">
+      {% if transaction_type == 'revenue' %}
+        <a class="rounded-full bg-emerald-600 px-4 py-3 text-sm font-medium text-white" href="{{ url_for('transactions.revenue_new') }}">Add Revenue</a>
+      {% elif transaction_type == 'expense' %}
+        <a class="rounded-full bg-rose-600 px-4 py-3 text-sm font-medium text-white" href="{{ url_for('transactions.expense_new') }}">New Expense</a>
+      {% endif %}
+      <a class="rounded-full border border-slate-300 px-4 py-3 text-sm" href="{{ url_for('transactions.transactions_export', type=transaction_type) }}">Export CSV</a>
+    </div>
+    <div class="mt-6 overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="text-left text-slate-500">
+          <tr><th class="pb-3">Title</th><th class="pb-3">Counterparty</th><th class="pb-3">Date</th><th class="pb-3">Amount</th><th class="pb-3">Status</th></tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for item in pagination.items %}
+            {% set status = item.status %}
+            <tr class="cursor-pointer hover:bg-slate-50" onclick="window.location='{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}'">
+              <td class="py-4">{{ item.title }}</td>
+              <td class="py-4">{{ item.counterparty or "-" }}</td>
+              <td class="py-4">{{ item.transaction_date.strftime('%d %b %Y') }}</td>
+              <td class="py-4">{{ item.amount|currency }}</td>
+              <td class="py-4">{% include "partials/status_badge.html" %}</td>
+            </tr>
+          {% else %}
+            <tr><td class="py-8 text-slate-500" colspan="5">No records match the current filters.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block page_title %}{{ transaction.title }}{% endblock %}
+{% block content %}
+  {% set status = transaction.status %}
+  <div class="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+    <div class="rounded-3xl bg-white p-8 shadow-sm">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-sm uppercase tracking-[0.25em] text-slate-500">{{ transaction.transaction_type }}</p>
+          <h3 class="mt-2 text-3xl font-semibold">{{ transaction.title }}</h3>
+          <p class="mt-3 text-slate-600">{{ transaction.description or "No description provided." }}</p>
+        </div>
+        {% include "partials/status_badge.html" %}
+      </div>
+      <dl class="mt-8 grid gap-5 md:grid-cols-2">
+        <div><dt class="text-xs uppercase tracking-[0.2em] text-slate-500">Counterparty</dt><dd class="mt-2 text-lg">{{ transaction.counterparty or "-" }}</dd></div>
+        <div><dt class="text-xs uppercase tracking-[0.2em] text-slate-500">Amount</dt><dd class="mt-2 text-lg">{{ transaction.amount|currency }}</dd></div>
+        <div><dt class="text-xs uppercase tracking-[0.2em] text-slate-500">Transaction Date</dt><dd class="mt-2 text-lg">{{ transaction.transaction_date.strftime('%d %b %Y') }}</dd></div>
+        <div><dt class="text-xs uppercase tracking-[0.2em] text-slate-500">Due Date</dt><dd class="mt-2 text-lg">{{ transaction.due_date.strftime('%d %b %Y') if transaction.due_date else "-" }}</dd></div>
+        <div><dt class="text-xs uppercase tracking-[0.2em] text-slate-500">Reference Number</dt><dd class="mt-2 text-lg">{{ transaction.reference_number or "-" }}</dd></div>
+        <div><dt class="text-xs uppercase tracking-[0.2em] text-slate-500">Attachments</dt><dd class="mt-2 text-lg">{{ transaction.attachment_count }}</dd></div>
+      </dl>
+      {% if transaction.note %}
+        <div class="mt-8 rounded-2xl bg-slate-50 p-5"><p class="text-sm font-medium text-slate-500">Internal Note</p><p class="mt-2 text-slate-700">{{ transaction.note }}</p></div>
+      {% endif %}
+    </div>
+    <div class="space-y-5">
+      <div class="rounded-3xl bg-white p-6 shadow-sm">
+        <h3 class="text-lg font-semibold">Actions</h3>
+        <div class="mt-4 flex flex-wrap gap-3">
+          {% if transaction.transaction_type == 'revenue' %}
+            <a class="rounded-full border border-slate-300 px-4 py-2 text-sm" href="{{ url_for('transactions.revenue_edit', transaction_id=transaction.id) }}">Edit</a>
+          {% else %}
+            <a class="rounded-full border border-slate-300 px-4 py-2 text-sm" href="{{ url_for('transactions.expense_edit', transaction_id=transaction.id) }}">Edit</a>
+          {% endif %}
+        </div>
+        {% if transaction.transaction_type == 'expense' %}
+          <form class="mt-5" method="post" action="{{ url_for('transactions.expense_submit', transaction_id=transaction.id) }}">{{ settlement_form.csrf_token }}<button class="rounded-full bg-slate-900 px-4 py-2 text-sm text-white" type="submit">Submit Expense</button></form>
+          {% if current_user.is_admin %}
+            <form class="mt-3" method="post" action="{{ url_for('transactions.expense_approve', transaction_id=transaction.id) }}">{{ settlement_form.csrf_token }}<button class="rounded-full bg-emerald-600 px-4 py-2 text-sm text-white" type="submit">Approve</button></form>
+            <form class="mt-3 space-y-3" method="post" action="{{ url_for('transactions.expense_reject', transaction_id=transaction.id) }}">{{ action_form.hidden_tag() }}{{ action_form.note(class="w-full rounded-2xl border-slate-200 px-4 py-3", rows="3", placeholder="Reason for rejection") }}<button class="rounded-full bg-rose-600 px-4 py-2 text-sm text-white" type="submit">Reject</button></form>
+            <form class="mt-3 space-y-3" method="post" action="{{ url_for('transactions.expense_return', transaction_id=transaction.id) }}">{{ action_form.hidden_tag() }}{{ action_form.note(class="w-full rounded-2xl border-slate-200 px-4 py-3", rows="3", placeholder="Reason for return") }}<button class="rounded-full bg-amber-600 px-4 py-2 text-sm text-white" type="submit">Return for edit</button></form>
+            <form class="mt-3 space-y-3" method="post" action="{{ url_for('transactions.expense_mark_paid', transaction_id=transaction.id) }}">{{ settlement_form.hidden_tag() }}{{ settlement_form.settled_date(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}<button class="rounded-full bg-emerald-700 px-4 py-2 text-sm text-white" type="submit">Mark paid</button></form>
+          {% endif %}
+        {% else %}
+          <form class="mt-3 space-y-3" method="post" action="{{ url_for('transactions.revenue_mark_received', transaction_id=transaction.id) }}">{{ settlement_form.hidden_tag() }}{{ settlement_form.amount(class="w-full rounded-2xl border-slate-200 px-4 py-3", placeholder="Received amount") }}{{ settlement_form.settled_date(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}<button class="rounded-full bg-emerald-600 px-4 py-2 text-sm text-white" type="submit">Mark received</button></form>
+        {% endif %}
+      </div>
+      <div class="rounded-3xl bg-white p-6 shadow-sm">
+        <h3 class="text-lg font-semibold">Delete Draft</h3>
+        <form class="mt-4" method="post" action="{{ url_for('transactions.transaction_delete', transaction_id=transaction.id) }}">
+          {{ delete_form.hidden_tag() }}
+          <button class="rounded-full border border-rose-300 px-4 py-2 text-sm text-rose-700" type="submit">Delete draft</button>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% set tone = "bg-slate-100 text-slate-800" %}
+{% if status in ["Received", "Paid", "Approved"] %}
+  {% set tone = "bg-emerald-100 text-emerald-900" %}
+{% elif status in ["Submitted", "Expected", "Partially Received"] %}
+  {% set tone = "bg-amber-100 text-amber-900" %}
+{% elif status in ["Rejected", "Cancelled", "Overdue"] %}
+  {% set tone = "bg-rose-100 text-rose-900" %}
+{% endif %}
+<span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold {{ tone }}">{{ status }}</span>

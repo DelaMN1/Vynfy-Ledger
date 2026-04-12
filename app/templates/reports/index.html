@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block page_title %}Reports{% endblock %}
+{% block content %}
+  <div class="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+    <div class="rounded-3xl bg-white p-6 shadow-sm">
+      <form class="space-y-5" method="get">
+        <div>
+          <label class="mb-2 block text-sm font-medium">Report</label>
+          <select class="w-full rounded-2xl border-slate-200 px-4 py-3" name="report">
+            {% for value, label in report_options %}
+              <option value="{{ value }}" {% if report_key == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>{{ filter_form.q.label(class="mb-2 block text-sm font-medium") }}{{ filter_form.q(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+        <div>{{ filter_form.status.label(class="mb-2 block text-sm font-medium") }}{{ filter_form.status(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+        <button class="rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white" type="submit">Run report</button>
+        <a class="inline-flex rounded-full border border-slate-300 px-4 py-3 text-sm" href="{{ url_for('reports.export_csv', report=report_key, q=request.args.get('q'), status=request.args.get('status')) }}">Export CSV</a>
+      </form>
+    </div>
+    <div class="rounded-3xl bg-white p-6 shadow-sm">
+      <div class="flex items-center justify-between">
+        <div><p class="text-sm text-slate-500">Current total</p><h3 class="mt-2 text-3xl font-semibold">{{ report.metric_total|currency }}</h3></div>
+      </div>
+      <canvas id="report-chart" class="mt-6 h-72"></canvas>
+      <div class="mt-6 overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead><tr class="text-left text-slate-500"><th class="pb-3">Label</th><th class="pb-3">Value</th></tr></thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for label, value in report.rows %}
+              <tr><td class="py-3">{{ label }}</td><td class="py-3">{{ value|currency }}</td></tr>
+            {% else %}
+              <tr><td class="py-6 text-slate-500" colspan="2">No report data for the current filters.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <script>
+    new Chart(document.getElementById("report-chart"), {
+      type: "bar",
+      data: { labels: {{ report["labels"]|tojson }}, datasets: [{ label: "Value", data: {{ report["values"]|tojson }}, backgroundColor: "#0f172a" }] },
+      options: { plugins: { legend: { display: false } } }
+    });
+  </script>
+{% endblock %}
