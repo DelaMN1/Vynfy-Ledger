@@ -2,6 +2,10 @@ body {
   font-family: "Segoe UI", "Inter", sans-serif;
 }
 
+[x-cloak] {
+  display: none !important;
+}
+
 .sidebar-link {
   display: block;
   border-radius: 9999px;

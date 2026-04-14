@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import random
 import secrets
 from typing import Iterable
 
@@ -11,6 +12,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 
 password_hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
+DUMMY_PASSWORD_HASH = password_hasher.hash("VynfyLedgerDummyPassword123!")
 
 COMMON_PASSWORD_SNIPPETS: Iterable[str] = {
     "password",
@@ -30,6 +32,10 @@ def verify_password(password_hash: str, password: str) -> bool:
         return password_hasher.verify(password_hash, password)
     except VerifyMismatchError:
         return False
+
+
+def consume_dummy_password_check(password: str) -> None:
+    verify_password(DUMMY_PASSWORD_HASH, password)
 
 
 def validate_password_policy(password: str) -> list[str]:
@@ -70,3 +76,8 @@ def generate_session_token() -> str:
 
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def generate_numeric_code(length: int = 6) -> str:
+    digits = [str(random.SystemRandom().randrange(10)) for _ in range(length)]
+    return "".join(digits)

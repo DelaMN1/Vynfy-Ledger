@@ -3,9 +3,12 @@ from __future__ import annotations
 from datetime import date, timedelta
 from decimal import Decimal
 
+from flask import current_app
+
 from app.extensions import db
 from app.models import Account, Category, PaymentMethod, Transaction, User
 from app.utils.audit import record_audit
+from app.utils.exceptions import ServiceError
 from app.utils.enums import CategoryType, ExpenseStatus, RevenueStatus, Role, TransactionType
 
 
@@ -34,6 +37,8 @@ def create_payment_method(*, name: str, actor: User) -> PaymentMethod:
 
 
 def seed_demo_data() -> None:
+    if not current_app.config["ALLOW_DEMO_SEED"]:
+        raise ServiceError("Demo seed data is disabled outside development and testing.")
     if User.query.filter_by(email="admin@vynfy.internal").first():
         return
     admin = User(full_name="Vynfy Admin", email="admin@vynfy.internal", role=Role.ADMIN.value, email_verified=True, can_create_revenue=True)

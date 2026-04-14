@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import re
 from datetime import timedelta
+from pathlib import Path
 
+import pytest
+
+import app.auth.services as auth_services
 from app.extensions import db
-from app.models import User, UserSession
+from app.models import LoginChallenge, User, UserSession
+from app.settings.services import seed_demo_data
 from app.utils.security import generate_token
 from app.utils.time import utcnow
 
@@ -41,7 +47,15 @@ def test_email_verification_flow(client, app):
 
 
 def test_login_logout_and_session_rotation(client, app, sample_data, login):
-    response = login("admin@example.com", "AdminPassword123")
+    first_step = login("admin@example.com", "AdminPassword123", finish=False)
+    assert first_step.status_code == 302
+    assert "/login/verify" in first_step.headers["Location"]
+    assert "vynfy_session=" not in (first_step.headers.get("Set-Cookie") or "")
+
+    outbox_dir = Path(app.config["OUTBOX_FOLDER"])
+    latest = max(outbox_dir.glob("*.txt"), key=lambda path: path.stat().st_mtime)
+    code = re.search(r"Use this sign-in code to complete your login: (\d{6})", latest.read_text(encoding="utf-8")).group(1)
+    response = client.post("/login/verify", data={"code": code}, follow_redirects=False)
     assert response.status_code == 302
     assert "vynfy_session=" in response.headers.get("Set-Cookie", "")
 
@@ -49,10 +63,19 @@ def test_login_logout_and_session_rotation(client, app, sample_data, login):
         session = UserSession.query.one()
         session.issued_at = utcnow() - timedelta(minutes=20)
         db.session.commit()
+        db.session.remove()
 
     rotated = client.get("/dashboard")
     assert rotated.status_code == 200
     assert "vynfy_session=" in rotated.headers.get("Set-Cookie", "")
+
+    with app.app_context():
+        sessions = UserSession.query.order_by(UserSession.id.asc()).all()
+        assert len(sessions) == 2
+        assert sessions[0].revoked_at is not None
+        assert sessions[0].replaced_by_token_id == sessions[1].id
+        assert sessions[0].second_factor_verified_at == sessions[1].second_factor_verified_at
+        db.session.remove()
 
     logout_response = client.post("/logout", follow_redirects=False)
     assert logout_response.status_code == 302
@@ -60,11 +83,121 @@ def test_login_logout_and_session_rotation(client, app, sample_data, login):
         assert UserSession.query.filter(UserSession.revoked_at.is_(None)).count() == 0
 
 
+def test_magic_link_completes_login(client, app, sample_data, login):
+    response = login("staff@example.com", "StaffPassword123", finish=False)
+    assert response.status_code == 302
+    outbox_dir = Path(app.config["OUTBOX_FOLDER"])
+    latest = max(outbox_dir.glob("*.txt"), key=lambda path: path.stat().st_mtime)
+    content = latest.read_text(encoding="utf-8")
+    path = re.search(r"https?://[^/]+(/login/magic/\S+)", content).group(1)
+    magic_response = client.get(path, follow_redirects=False)
+    assert magic_response.status_code == 302
+    with app.app_context():
+        assert LoginChallenge.query.filter(LoginChallenge.consumed_at.is_(None)).count() == 0
+
+
 def test_failed_login_locks_account(client, app, sample_data):
-    for _ in range(5):
+    for _ in range(9):
         client.post("/login", data={"email": "staff@example.com", "password": "wrong-password"})
     with app.app_context():
         user = User.query.filter_by(email="staff@example.com").first()
+        assert user.locked_until is None
+
+    client.post("/login", data={"email": "staff@example.com", "password": "wrong-password"})
+    with app.app_context():
+        user = User.query.filter_by(email="staff@example.com").first()
         assert user.locked_until is not None
-    response = client.post("/login", data={"email": "staff@example.com", "password": "StaffPassword123"}, follow_redirects=True)
-    assert b"temporarily locked" in response.data
+        first_lock = user.locked_until
+
+    with app.test_request_context("/login", method="POST"):
+        with pytest.raises(ValueError, match="Invalid email or password."):
+            auth_services.authenticate_user(email="staff@example.com", password="StaffPassword123")
+        db.session.commit()
+
+    with app.app_context():
+        user = User.query.filter_by(email="staff@example.com").first()
+        user.locked_until = utcnow() - timedelta(seconds=1)
+        db.session.commit()
+
+    with app.test_request_context("/login", method="POST"):
+        with pytest.raises(ValueError, match="Invalid email or password."):
+            auth_services.authenticate_user(email="staff@example.com", password="wrong-password")
+        db.session.commit()
+
+        user = User.query.filter_by(email="staff@example.com").first()
+        assert user.locked_until is not None
+        assert user.locked_until > first_lock
+
+
+def test_protected_routes_require_auth_by_default(client):
+    protected = client.get("/reports", follow_redirects=False)
+    public = client.get("/forgot-password", follow_redirects=False)
+    assert protected.status_code == 302
+    assert "/login" in protected.headers["Location"]
+    assert public.status_code == 200
+
+
+def test_login_next_redirect_is_sanitized(client, app, sample_data):
+    first_step = client.post(
+        "/login?next=https://attacker.example/steal",
+        data={"email": "staff@example.com", "password": "StaffPassword123"},
+        follow_redirects=False,
+    )
+    assert first_step.status_code == 302
+
+    outbox_dir = Path(app.config["OUTBOX_FOLDER"])
+    latest = max(outbox_dir.glob("*.txt"), key=lambda path: path.stat().st_mtime)
+    code = re.search(r"Use this sign-in code to complete your login: (\d{6})", latest.read_text(encoding="utf-8")).group(1)
+
+    response = client.post("/login/verify", data={"code": code}, follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/dashboard")
+
+
+def test_password_reset_uses_configured_expiry(client, app):
+    with app.app_context():
+        user = User(full_name="Reset User", email="reset@example.com", email_verified=True)
+        user.set_password("ResetPassword123")
+        db.session.add(user)
+        db.session.commit()
+        user_id = user.id
+
+    captured = {}
+
+    def fake_load_token(_token, max_age):
+        captured["max_age"] = max_age
+        return {"purpose": "reset-password", "user_id": user_id}
+
+    original = auth_services.load_token
+    auth_services.load_token = fake_load_token
+    try:
+        with app.app_context():
+            auth_services.reset_user_password("token", "FreshCredential123")
+    finally:
+        auth_services.load_token = original
+
+    assert captured["max_age"] == app.config["PASSWORD_RESET_MINUTES"] * 60
+
+
+def test_admin_routes_require_recent_second_factor(client, app, sample_data, login):
+    login("admin@example.com", "AdminPassword123")
+    with app.app_context():
+        session = UserSession.query.filter(UserSession.revoked_at.is_(None)).one()
+        session_id = session.id
+        session.second_factor_verified_at = utcnow() - timedelta(minutes=app.config["ADMIN_STEP_UP_MINUTES"] + 1)
+        db.session.commit()
+
+    response = client.get("/admin/pending-approvals", follow_redirects=False)
+    assert response.status_code == 302
+    assert "/login" in response.headers["Location"]
+
+    with app.app_context():
+        session = db.session.get(UserSession, session_id)
+        assert session.revoked_at is not None
+
+
+def test_demo_seed_is_disabled_when_not_explicitly_allowed(app):
+    app.config["ALLOW_DEMO_SEED"] = False
+    with app.app_context():
+        with pytest.raises(ValueError, match="Demo seed data is disabled"):
+            seed_demo_data()

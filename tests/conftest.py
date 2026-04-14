@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -12,12 +15,24 @@ from app.utils.enums import CategoryType, ExpenseStatus, RevenueStatus, Role, Tr
 
 
 @pytest.fixture
-def app(tmp_path):
+def app():
+    tmp_path = Path.cwd() / ".tmp-tests" / uuid4().hex
+    tmp_path.mkdir(parents=True, exist_ok=True)
     app = create_app("testing")
     app.config.update(
         SQLALCHEMY_DATABASE_URI=f"sqlite:///{(tmp_path / 'test.db').as_posix()}",
         UPLOAD_FOLDER=str(tmp_path / "uploads"),
         OUTBOX_FOLDER=str(tmp_path / "outbox"),
+        SENDGRID_API_KEY=None,
+        SMTP_HOST=None,
+        SMTP_USERNAME=None,
+        SMTP_PASSWORD=None,
+        MAX_FAILED_LOGINS=10,
+        LOGIN_LOCKOUT_BASE_MINUTES=1,
+        MAX_LOGIN_LOCKOUT_MINUTES=60,
+        PASSWORD_RESET_MINUTES=30,
+        ADMIN_STEP_UP_MINUTES=15,
+        ALLOW_DEMO_SEED=True,
         RATELIMIT_ENABLED=False,
         TESTING=True,
     )
@@ -113,7 +128,19 @@ def sample_data(app):
 
 @pytest.fixture
 def login(client):
-    def _login(email: str, password: str):
-        return client.post("/login", data={"email": email, "password": password}, follow_redirects=False)
+    def _latest_outbox_code() -> str:
+        outbox_dir = Path(client.application.config["OUTBOX_FOLDER"])
+        latest = max(outbox_dir.glob("*.txt"), key=lambda path: path.stat().st_mtime)
+        match = re.search(r"Use this sign-in code to complete your login: (\d{6})", latest.read_text(encoding="utf-8"))
+        if not match:
+            raise AssertionError("No login code found in latest outbox email.")
+        return match.group(1)
+
+    def _login(email: str, password: str, *, finish: bool = True):
+        response = client.post("/login", data={"email": email, "password": password}, follow_redirects=False)
+        if not finish:
+            return response
+        code = _latest_outbox_code()
+        return client.post("/login/verify", data={"code": code}, follow_redirects=False)
 
     return _login

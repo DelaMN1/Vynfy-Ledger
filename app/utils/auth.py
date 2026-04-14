@@ -19,19 +19,24 @@ def _session_expiry() -> tuple:
     return issued_at, expires_at
 
 
-def create_session(user, *, ip_address: str | None, user_agent: str | None) -> str:
+def create_session(user, *, ip_address: str | None, user_agent: str | None, second_factor_at=None, replaced_session: UserSession | None = None) -> str:
     raw_token = generate_session_token()
     issued_at, expires_at = _session_expiry()
+    second_factor_verified_at = second_factor_at or issued_at
     session = UserSession(
         user_id=user.id,
         token_hash=hash_token(raw_token),
         issued_at=issued_at,
         expires_at=expires_at,
+        second_factor_verified_at=second_factor_verified_at,
         ip_address=ip_address,
         user_agent=user_agent,
     )
     db.session.add(session)
     db.session.flush()
+    if replaced_session:
+        replaced_session.revoked_at = issued_at
+        replaced_session.replaced_by_token_id = session.id
     g.auth_session = session
     return raw_token
 
@@ -69,14 +74,20 @@ def load_user_from_session() -> None:
             session.user,
             ip_address=request.headers.get("X-Forwarded-For", request.remote_addr),
             user_agent=request.user_agent.string,
+            second_factor_at=session.second_factor_verified_at,
+            replaced_session=session,
         )
-        session.revoked_at = utcnow()
         g.session_cookie_to_set = new_token
 
 
 def apply_auth_cookie(response):
     if getattr(g, "clear_session_cookie", False):
-        response.delete_cookie(SESSION_COOKIE)
+        response.delete_cookie(
+            SESSION_COOKIE,
+            secure=current_app.config["SESSION_COOKIE_SECURE"],
+            httponly=True,
+            samesite=current_app.config["SESSION_COOKIE_SAMESITE"],
+        )
         return response
 
     if getattr(g, "session_cookie_to_set", None):
@@ -87,8 +98,9 @@ def apply_auth_cookie(response):
             max_age=int(current_app.config["ACCESS_SESSION_TTL"].total_seconds()),
             httponly=True,
             secure=current_app.config["SESSION_COOKIE_SECURE"],
-            samesite="Lax",
+            samesite=current_app.config["SESSION_COOKIE_SAMESITE"],
         )
         if g.auth_session:
             g.auth_session.expires_at = expires_at
+        db.session.commit()
     return response
