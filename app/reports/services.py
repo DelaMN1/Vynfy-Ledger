@@ -4,11 +4,18 @@ from collections import defaultdict
 from decimal import Decimal
 
 from app.models import Transaction, User
-from app.transactions.services import TransactionFilters, apply_filters, export_transactions_csv, visible_transactions_query
-from app.utils.enums import ExpenseStatus, RevenueStatus, TransactionType
+from app.transactions.services import apply_filters, export_transactions_csv, visible_transactions_query
+from app.utils.enums import (
+    EXPENSE_PAYABLE_STATUSES,
+    EXPENSE_SETTLED_STATUSES,
+    REVENUE_RECEIVABLE_STATUSES,
+    REVENUE_SETTLED_STATUSES,
+    TransactionType,
+)
+from app.utils.types import ReportOptions, ReportResult, TransactionFilters
 
 
-REPORT_OPTIONS = [
+REPORT_OPTIONS: ReportOptions = (
     ("revenue_monthly", "Revenue by month"),
     ("expense_monthly", "Expenses by month"),
     ("cash_flow_monthly", "Net cash flow by month"),
@@ -16,33 +23,36 @@ REPORT_OPTIONS = [
     ("revenue_source", "Revenue by source"),
     ("receivables", "Outstanding receivables"),
     ("payables", "Outstanding payables"),
-]
+)
 
 
-def build_report(user: User, report_key: str, filters: TransactionFilters) -> dict:
-    rows = defaultdict(Decimal)
+def build_report(user: User, report_key: str, filters: TransactionFilters) -> ReportResult:
+    rows: defaultdict[str, Decimal] = defaultdict(Decimal)
     items = apply_filters(visible_transactions_query(user), filters).order_by(Transaction.transaction_date.asc()).all()
     for item in items:
         month_label = item.transaction_date.strftime("%b %Y")
         if report_key == "revenue_monthly" and item.transaction_type == TransactionType.REVENUE.value:
-            rows[month_label] += Decimal(item.received_amount or 0)
+            if item.status in REVENUE_SETTLED_STATUSES:
+                rows[month_label] += Decimal(item.received_amount or 0)
         elif report_key == "expense_monthly" and item.transaction_type == TransactionType.EXPENSE.value:
-            if item.status in {ExpenseStatus.PAID.value, ExpenseStatus.REIMBURSED.value}:
+            if item.status in EXPENSE_SETTLED_STATUSES:
                 rows[month_label] += Decimal(item.amount or 0)
         elif report_key == "cash_flow_monthly":
             if item.transaction_type == TransactionType.REVENUE.value:
-                rows[month_label] += Decimal(item.received_amount or 0)
-            elif item.status in {ExpenseStatus.PAID.value, ExpenseStatus.REIMBURSED.value}:
+                if item.status in REVENUE_SETTLED_STATUSES:
+                    rows[month_label] += Decimal(item.received_amount or 0)
+            elif item.status in EXPENSE_SETTLED_STATUSES:
                 rows[month_label] -= Decimal(item.amount or 0)
         elif report_key == "expense_category" and item.transaction_type == TransactionType.EXPENSE.value:
             rows[item.category.name] += Decimal(item.amount or 0)
         elif report_key == "revenue_source" and item.transaction_type == TransactionType.REVENUE.value:
-            rows[item.counterparty or item.title] += Decimal(item.received_amount or 0)
+            if item.status in REVENUE_SETTLED_STATUSES:
+                rows[item.counterparty or item.title] += Decimal(item.received_amount or 0)
         elif report_key == "receivables" and item.transaction_type == TransactionType.REVENUE.value:
-            if item.status in {RevenueStatus.EXPECTED.value, RevenueStatus.PARTIALLY_RECEIVED.value, RevenueStatus.OVERDUE.value}:
+            if item.status in REVENUE_RECEIVABLE_STATUSES:
                 rows[item.counterparty or item.title] += Decimal(item.expected_amount or item.amount or 0) - Decimal(item.received_amount or 0)
         elif report_key == "payables" and item.transaction_type == TransactionType.EXPENSE.value:
-            if item.status in {ExpenseStatus.SUBMITTED.value, ExpenseStatus.APPROVED.value, ExpenseStatus.OVERDUE.value}:
+            if item.status in EXPENSE_PAYABLE_STATUSES:
                 rows[item.counterparty or item.title] += Decimal(item.amount or 0)
     return {
         "labels": list(rows.keys()),

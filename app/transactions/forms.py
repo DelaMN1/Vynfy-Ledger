@@ -5,7 +5,7 @@ from flask_wtf.file import MultipleFileField
 from wtforms import BooleanField, DateField, DecimalField, HiddenField, SelectField, StringField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length, NumberRange, Optional
 
-from app.utils.enums import ExpenseStatus, RevenueStatus
+from app.utils.enums import ExpenseStatus, RevenueStatus, choices
 
 
 class BaseTransactionForm(FlaskForm):
@@ -28,21 +28,13 @@ class BaseTransactionForm(FlaskForm):
 class RevenueForm(BaseTransactionForm):
     expected_amount = DecimalField("Expected amount", validators=[DataRequired(), NumberRange(min=0.01)], places=2)
     received_amount = DecimalField("Received amount", validators=[Optional(), NumberRange(min=0)], places=2)
-    status = SelectField(
-        "Status",
-        choices=[(status.value, status.value) for status in RevenueStatus],
-        validators=[Optional()],
-    )
+    status = SelectField("Status", choices=choices(RevenueStatus), validators=[Optional()])
 
 
 class ExpenseForm(BaseTransactionForm):
     amount = DecimalField("Amount", validators=[DataRequired(), NumberRange(min=0.01)], places=2)
     reimbursable = BooleanField("Reimbursable")
-    status = SelectField(
-        "Status",
-        choices=[(status.value, status.value) for status in ExpenseStatus],
-        validators=[Optional()],
-    )
+    status = SelectField("Status", choices=choices(ExpenseStatus), validators=[Optional()])
 
 
 class ExpenseActionForm(FlaskForm):

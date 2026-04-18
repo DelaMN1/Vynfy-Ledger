@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import mimetypes
-import os
 from pathlib import Path
 from uuid import uuid4
 
@@ -40,7 +39,3 @@ def store_upload(file: FileStorage) -> tuple[str, str]:
     file_path = upload_dir / stored_name
     file.save(file_path)
     return safe_original, stored_name
-
-
-def file_size(path: str) -> int:
-    return os.path.getsize(path)

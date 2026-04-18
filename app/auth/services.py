@@ -5,13 +5,16 @@ from datetime import timedelta
 from email.message import EmailMessage
 from html import escape
 from pathlib import Path
+from typing import cast
 
 from email_validator import EmailNotValidError, validate_email
 from flask import current_app, g, request, url_for
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models.session import LoginChallenge
 from app.models.user import User
+from app.utils.types import LoginChallengeTokenPayload, PasswordResetTokenPayload, VerificationTokenPayload
 from app.utils.audit import record_audit
 from app.utils.auth import create_session, revoke_session
 from app.utils.exceptions import ServiceError
@@ -52,7 +55,7 @@ def _send_email(recipient: str, subject: str, body: str) -> None:
             response = SendGridAPIClient(current_app.config["SENDGRID_API_KEY"]).send(message)
             current_app.logger.info("SendGrid email accepted with status %s", response.status_code)
             return
-        except Exception as exc:  # SendGrid SDK raises provider-specific exceptions without a narrow stable base type.
+        except Exception as exc:
             current_app.logger.exception("SendGrid delivery failed; falling back to SMTP/outbox.")
             if not current_app.config["SMTP_HOST"]:
                 write_outbox_copy(str(exc))
@@ -80,16 +83,28 @@ def _send_email(recipient: str, subject: str, body: str) -> None:
     write_outbox_copy()
 
 
+def _verification_payload(user: User) -> VerificationTokenPayload:
+    return {"purpose": "verify-email", "user_id": user.id}
+
+
 def _verification_token(user: User) -> str:
-    return generate_token({"purpose": "verify-email", "user_id": user.id})
+    return generate_token(_verification_payload(user))
+
+
+def _reset_payload(user: User) -> PasswordResetTokenPayload:
+    return {"purpose": "reset-password", "user_id": user.id}
 
 
 def _reset_token(user: User) -> str:
-    return generate_token({"purpose": "reset-password", "user_id": user.id})
+    return generate_token(_reset_payload(user))
+
+
+def _login_challenge_payload(challenge: LoginChallenge) -> LoginChallengeTokenPayload:
+    return {"purpose": "login-challenge", "challenge_id": challenge.id}
 
 
 def _login_challenge_token(challenge: LoginChallenge) -> str:
-    return generate_token({"purpose": "login-challenge", "challenge_id": challenge.id})
+    return generate_token(_login_challenge_payload(challenge))
 
 
 def send_verification_email(user: User) -> None:
@@ -143,7 +158,10 @@ def register_user(*, full_name: str, email: str, password: str, role: str = "sta
     )
     user.set_password(password)
     db.session.add(user)
-    db.session.flush()
+    try:
+        db.session.flush()
+    except IntegrityError as exc:
+        raise ServiceError("An account with that email already exists.") from exc
     record_audit(user_id=user.id, entity_type="user", entity_id=user.id, action="register", new_values={"email": user.email})
     send_verification_email(user)
     return user
@@ -181,11 +199,14 @@ def create_user_by_admin(
 
 def verify_email_token(token: str) -> User:
     payload = load_token(token, max_age=60 * 60 * 24)
-    if payload.get("purpose") != "verify-email":
+    if payload["purpose"] != "verify-email":
         raise ServiceError("Verification link is invalid.")
-    user = db.session.get(User, payload.get("user_id"))
+    verification_payload = cast(VerificationTokenPayload, payload)
+    user = db.session.get(User, verification_payload["user_id"])
     if not user:
         raise ServiceError("Verification link is invalid.")
+    if user.email_verified:
+        return user
     user.email_verified = True
     record_audit(user_id=user.id, entity_type="user", entity_id=user.id, action="verify_email")
     return user
@@ -200,9 +221,10 @@ def request_password_reset(email: str) -> None:
 
 def reset_user_password(token: str, password: str) -> User:
     payload = load_token(token, max_age=current_app.config["PASSWORD_RESET_MINUTES"] * 60)
-    if payload.get("purpose") != "reset-password":
+    if payload["purpose"] != "reset-password":
         raise ServiceError("Password reset link is invalid.")
-    user = db.session.get(User, payload.get("user_id"))
+    reset_payload = cast(PasswordResetTokenPayload, payload)
+    user = db.session.get(User, reset_payload["user_id"])
     if not user:
         raise ServiceError("Password reset link is invalid.")
     password_errors = validate_password_policy(password)
@@ -215,7 +237,7 @@ def reset_user_password(token: str, password: str) -> User:
     return user
 
 
-def authenticate_user(*, email: str, password: str) -> str:
+def authenticate_user(*, email: str, password: str) -> LoginChallenge:
     normalized_email = normalize_email(email)
     user = User.query.filter_by(email=normalized_email).first()
     if not user:
@@ -328,9 +350,10 @@ def verify_login_code(*, challenge_id: int, code: str) -> str:
 
 def complete_login_magic_token(token: str) -> str:
     payload = load_token(token, max_age=current_app.config["LOGIN_CHALLENGE_MINUTES"] * 60)
-    if payload.get("purpose") != "login-challenge":
+    if payload["purpose"] != "login-challenge":
         raise ServiceError("Magic link is invalid.")
-    challenge = _get_active_challenge(int(payload.get("challenge_id")))
+    login_payload = cast(LoginChallengeTokenPayload, payload)
+    challenge = _get_active_challenge(login_payload["challenge_id"])
     return complete_login_challenge(challenge)
 
 

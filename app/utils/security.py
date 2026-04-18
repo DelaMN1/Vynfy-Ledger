@@ -3,24 +3,28 @@ from __future__ import annotations
 import hashlib
 import random
 import secrets
-from typing import Iterable
+from typing import cast
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from flask import current_app
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
+from app.utils.types import TokenPayload
+
 
 password_hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
 DUMMY_PASSWORD_HASH = password_hasher.hash("VynfyLedgerDummyPassword123!")
 
-COMMON_PASSWORD_SNIPPETS: Iterable[str] = {
-    "password",
-    "123456",
-    "qwerty",
-    "admin",
-    "welcome",
-}
+COMMON_PASSWORD_SNIPPETS: frozenset[str] = frozenset(
+    {
+        "password",
+        "123456",
+        "qwerty",
+        "admin",
+        "welcome",
+    }
+)
 
 
 def hash_password(password: str) -> str:
@@ -53,19 +57,19 @@ def validate_password_policy(password: str) -> list[str]:
     return errors
 
 
-def generate_token(payload: dict[str, str | int]) -> str:
+def generate_token(payload: TokenPayload) -> str:
     serializer = URLSafeTimedSerializer(
         secret_key=current_app.config["SECRET_KEY"], salt=current_app.config["SECURITY_PASSWORD_SALT"]
     )
     return serializer.dumps(payload)
 
 
-def load_token(token: str, max_age: int) -> dict[str, str | int]:
+def load_token(token: str, max_age: int) -> TokenPayload:
     serializer = URLSafeTimedSerializer(
         secret_key=current_app.config["SECRET_KEY"], salt=current_app.config["SECURITY_PASSWORD_SALT"]
     )
     try:
-        return serializer.loads(token, max_age=max_age)
+        return cast(TokenPayload, serializer.loads(token, max_age=max_age))
     except (BadSignature, SignatureExpired) as exc:
         raise ValueError("Invalid or expired token.") from exc
 

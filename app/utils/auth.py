@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime
 from datetime import timedelta
 
-from flask import current_app, g, request
+from flask import Response, current_app, g, request
 
 from app.extensions import db
 from app.models.session import UserSession
+from app.models.user import User
 from app.utils.security import generate_session_token, hash_token
 from app.utils.time import utcnow
 
@@ -13,13 +15,20 @@ from app.utils.time import utcnow
 SESSION_COOKIE = "vynfy_session"
 
 
-def _session_expiry() -> tuple:
+def _session_expiry() -> tuple[datetime, datetime]:
     issued_at = utcnow()
     expires_at = issued_at + current_app.config["ACCESS_SESSION_TTL"]
     return issued_at, expires_at
 
 
-def create_session(user, *, ip_address: str | None, user_agent: str | None, second_factor_at=None, replaced_session: UserSession | None = None) -> str:
+def create_session(
+    user: User,
+    *,
+    ip_address: str | None,
+    user_agent: str | None,
+    second_factor_at: datetime | None = None,
+    replaced_session: UserSession | None = None,
+) -> str:
     raw_token = generate_session_token()
     issued_at, expires_at = _session_expiry()
     second_factor_verified_at = second_factor_at or issued_at
@@ -80,7 +89,7 @@ def load_user_from_session() -> None:
         g.session_cookie_to_set = new_token
 
 
-def apply_auth_cookie(response):
+def apply_auth_cookie(response: Response) -> Response:
     if getattr(g, "clear_session_cookie", False):
         response.delete_cookie(
             SESSION_COOKIE,

@@ -5,7 +5,6 @@ from flask import Blueprint, Response, flash, g, redirect, render_template, requ
 from app.extensions import db
 from app.transactions.forms import DeleteDraftForm, ExpenseActionForm, ExpenseForm, RevenueForm, SettlementForm, TransactionFilterForm
 from app.transactions.services import (
-    TransactionFilters,
     approve_expense,
     assign_filter_choices,
     assign_form_choices,
@@ -23,6 +22,7 @@ from app.transactions.services import (
 )
 from app.utils.decorators import admin_required, login_required
 from app.utils.enums import TransactionType
+from app.utils.types import TransactionFilters
 
 
 transactions_bp = Blueprint("transactions", __name__)
@@ -38,7 +38,7 @@ def _filters() -> TransactionFilters:
     )
 
 
-def _render_list(transaction_type: str | None = None):
+def _render_list(transaction_type: str | None = None) -> str:
     form = TransactionFilterForm(formdata=request.args)
     assign_filter_choices(form, user=g.current_user, transaction_type=transaction_type)
     pagination = list_transactions(user=g.current_user, transaction_type=transaction_type, filters=_filters())

@@ -70,6 +70,18 @@ def test_invalid_transition_is_blocked(client, app, sample_data, login):
     assert b"Invalid status transition" in response.data
 
 
+def test_duplicate_approve_does_not_overwrite_existing_approval(client, app, sample_data, login):
+    login("admin@example.com", "AdminPassword123")
+    first = client.post(f"/expenses/{sample_data['submitted_expense_id']}/approve", follow_redirects=False)
+    second = client.post(f"/expenses/{sample_data['submitted_expense_id']}/approve", follow_redirects=False)
+
+    assert first.status_code == 302
+    assert second.status_code == 302
+    with app.app_context():
+        item = db.session.get(Transaction, sample_data["submitted_expense_id"])
+        assert item.status == ExpenseStatus.APPROVED.value
+
+
 def test_attachment_validation_blocks_invalid_files(client, app, sample_data, login):
     login("staff@example.com", "StaffPassword123")
     response = client.post(

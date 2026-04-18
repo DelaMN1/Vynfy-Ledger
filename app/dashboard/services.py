@@ -9,7 +9,15 @@ from sqlalchemy import func
 from app.extensions import db
 from app.models import Account, Category, Transaction, User
 from app.transactions.services import recent_transactions, visible_transactions_query
-from app.utils.enums import ExpenseStatus, RevenueStatus, TransactionType
+from app.utils.enums import (
+    EXPENSE_PAYABLE_STATUSES,
+    EXPENSE_SETTLED_STATUSES,
+    ExpenseStatus,
+    REVENUE_RECEIVABLE_STATUSES,
+    REVENUE_SETTLED_STATUSES,
+    TransactionType,
+)
+from app.utils.types import DashboardContext, MonthlyTotals
 
 
 def _date_range(range_key: str) -> tuple[date, date]:
@@ -23,7 +31,7 @@ def _date_range(range_key: str) -> tuple[date, date]:
     return start, today
 
 
-def dashboard_context(user: User, *, range_key: str = "month") -> dict:
+def dashboard_context(user: User, *, range_key: str = "month") -> DashboardContext:
     start_date, end_date = _date_range(range_key)
     records = (
         visible_transactions_query(user)
@@ -34,28 +42,28 @@ def dashboard_context(user: User, *, range_key: str = "month") -> dict:
         Decimal(item.received_amount or 0)
         for item in records
         if item.transaction_type == TransactionType.REVENUE.value
-        and item.status in {RevenueStatus.PARTIALLY_RECEIVED.value, RevenueStatus.RECEIVED.value}
+        and item.status in REVENUE_SETTLED_STATUSES
     )
     expense_total = sum(
         Decimal(item.amount or 0)
         for item in records
         if item.transaction_type == TransactionType.EXPENSE.value
-        and item.status in {ExpenseStatus.PAID.value, ExpenseStatus.REIMBURSED.value}
+        and item.status in EXPENSE_SETTLED_STATUSES
     )
     receivables = sum(
         Decimal(item.expected_amount or item.amount or 0) - Decimal(item.received_amount or 0)
         for item in visible_transactions_query(user, TransactionType.REVENUE.value).all()
-        if item.status in {RevenueStatus.EXPECTED.value, RevenueStatus.PARTIALLY_RECEIVED.value, RevenueStatus.OVERDUE.value}
+        if item.status in REVENUE_RECEIVABLE_STATUSES
     )
     payables = sum(
         Decimal(item.amount or 0)
         for item in visible_transactions_query(user, TransactionType.EXPENSE.value).all()
-        if item.status in {ExpenseStatus.SUBMITTED.value, ExpenseStatus.APPROVED.value, ExpenseStatus.OVERDUE.value}
+        if item.status in EXPENSE_PAYABLE_STATUSES
     )
     overdue_items = (
         visible_transactions_query(user)
         .filter(Transaction.due_date.is_not(None), Transaction.due_date < date.today())
-        .filter(Transaction.status.notin_([ExpenseStatus.PAID.value, RevenueStatus.RECEIVED.value]))
+        .filter(Transaction.status.notin_(set(EXPENSE_SETTLED_STATUSES) | set(REVENUE_SETTLED_STATUSES)))
         .count()
     )
     pending_approvals = (
@@ -79,12 +87,12 @@ def dashboard_context(user: User, *, range_key: str = "month") -> dict:
         .limit(5)
         .all()
     )
-    monthly = defaultdict(lambda: {"revenue": Decimal("0"), "expense": Decimal("0")})
+    monthly: defaultdict[str, MonthlyTotals] = defaultdict(lambda: {"revenue": Decimal("0"), "expense": Decimal("0")})
     for item in visible_transactions_query(user).filter(Transaction.transaction_date >= date.today() - timedelta(days=180)).all():
         key = item.transaction_date.strftime("%b %Y")
         if item.transaction_type == TransactionType.REVENUE.value:
             monthly[key]["revenue"] += Decimal(item.received_amount or 0)
-        elif item.status in {ExpenseStatus.PAID.value, ExpenseStatus.REIMBURSED.value}:
+        elif item.status in EXPENSE_SETTLED_STATUSES:
             monthly[key]["expense"] += Decimal(item.amount or 0)
 
     return {

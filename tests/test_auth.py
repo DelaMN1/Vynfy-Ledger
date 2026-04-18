@@ -5,11 +5,13 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 import app.auth.services as auth_services
 from app.extensions import db
 from app.models import LoginChallenge, User, UserSession
 from app.settings.services import seed_demo_data
+from app.utils.types import PasswordResetTokenPayload, VerificationTokenPayload
 from app.utils.security import generate_token
 from app.utils.time import utcnow
 
@@ -32,13 +34,34 @@ def test_registration_creates_unverified_user_and_outbox(client, app):
         assert user.email_verified is False
 
 
+def test_registration_duplicate_flush_shows_friendly_error(client, monkeypatch):
+    def duplicate_flush(*args, **kwargs):
+        raise IntegrityError("insert users", {}, Exception("UNIQUE constraint failed: users.email"))
+
+    monkeypatch.setattr(auth_services.db.session, "flush", duplicate_flush)
+    response = client.post(
+        "/register",
+        data={
+            "full_name": "New User",
+            "email": "new@example.com",
+            "password": "ComplexPass123",
+            "confirm_password": "ComplexPass123",
+        },
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert b"An account with that email already exists." in response.data
+
+
 def test_email_verification_flow(client, app):
     with app.app_context():
         user = User(full_name="Pending User", email="pending@example.com", email_verified=False)
         user.set_password("PendingPassword123")
         db.session.add(user)
         db.session.commit()
-        token = generate_token({"purpose": "verify-email", "user_id": user.id})
+        verification_payload: VerificationTokenPayload = {"purpose": "verify-email", "user_id": user.id}
+        token = generate_token(verification_payload)
     response = client.get(f"/verify-email/{token}", follow_redirects=False)
     assert response.status_code == 302
     with app.app_context():
@@ -81,6 +104,10 @@ def test_login_logout_and_session_rotation(client, app, sample_data, login):
     assert logout_response.status_code == 302
     with app.app_context():
         assert UserSession.query.filter(UserSession.revoked_at.is_(None)).count() == 0
+
+
+def test_csrf_tokens_do_not_expire_by_default(app):
+    assert app.config["WTF_CSRF_TIME_LIMIT"] is None
 
 
 def test_magic_link_completes_login(client, app, sample_data, login):
@@ -137,6 +164,23 @@ def test_protected_routes_require_auth_by_default(client):
     assert public.status_code == 200
 
 
+def test_unauthenticated_post_does_not_set_login_next(client, app, sample_data):
+    logout_redirect = client.post("/logout", follow_redirects=False)
+    assert logout_redirect.status_code == 302
+    assert logout_redirect.headers["Location"].endswith("/login")
+
+    first_step = client.post("/login", data={"email": "staff@example.com", "password": "StaffPassword123"}, follow_redirects=False)
+    assert first_step.status_code == 302
+
+    outbox_dir = Path(app.config["OUTBOX_FOLDER"])
+    latest = max(outbox_dir.glob("*.txt"), key=lambda path: path.stat().st_mtime)
+    code = re.search(r"Use this sign-in code to complete your login: (\d{6})", latest.read_text(encoding="utf-8")).group(1)
+
+    response = client.post("/login/verify", data={"code": code}, follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/dashboard")
+
+
 def test_login_next_redirect_is_sanitized(client, app, sample_data):
     first_step = client.post(
         "/login?next=https://attacker.example/steal",
@@ -154,7 +198,7 @@ def test_login_next_redirect_is_sanitized(client, app, sample_data):
     assert response.headers["Location"].endswith("/dashboard")
 
 
-def test_password_reset_uses_configured_expiry(client, app):
+def test_password_reset_uses_configured_expiry(client, app, monkeypatch):
     with app.app_context():
         user = User(full_name="Reset User", email="reset@example.com", email_verified=True)
         user.set_password("ResetPassword123")
@@ -164,17 +208,13 @@ def test_password_reset_uses_configured_expiry(client, app):
 
     captured = {}
 
-    def fake_load_token(_token, max_age):
+    def fake_load_token(_token: str, max_age: int) -> PasswordResetTokenPayload:
         captured["max_age"] = max_age
         return {"purpose": "reset-password", "user_id": user_id}
 
-    original = auth_services.load_token
-    auth_services.load_token = fake_load_token
-    try:
-        with app.app_context():
-            auth_services.reset_user_password("token", "FreshCredential123")
-    finally:
-        auth_services.load_token = original
+    monkeypatch.setattr(auth_services, "load_token", fake_load_token)
+    with app.app_context():
+        auth_services.reset_user_password("token", "FreshCredential123")
 
     assert captured["max_age"] == app.config["PASSWORD_RESET_MINUTES"] * 60
 
@@ -194,6 +234,18 @@ def test_admin_routes_require_recent_second_factor(client, app, sample_data, log
     with app.app_context():
         session = db.session.get(UserSession, session_id)
         assert session.revoked_at is not None
+
+
+def test_admin_post_redirect_does_not_preserve_post_next(client, app, sample_data, login):
+    login("admin@example.com", "AdminPassword123")
+    with app.app_context():
+        session = UserSession.query.filter(UserSession.revoked_at.is_(None)).one()
+        session.second_factor_verified_at = utcnow() - timedelta(minutes=app.config["ADMIN_STEP_UP_MINUTES"] + 1)
+        db.session.commit()
+
+    response = client.post("/settings/categories", data={"name": "Ops", "type": "Expense", "color": "#123456"}, follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
 
 
 def test_demo_seed_is_disabled_when_not_explicitly_allowed(app):

@@ -4,6 +4,7 @@ from flask import request
 
 from app.extensions import db
 from app.models.audit_log import AuditLog
+from app.utils.types import JsonValue
 
 
 def record_audit(
@@ -12,8 +13,8 @@ def record_audit(
     entity_type: str,
     entity_id: int | None,
     action: str,
-    old_values: dict | None = None,
-    new_values: dict | None = None,
+    old_values: JsonValue | None = None,
+    new_values: JsonValue | None = None,
 ) -> None:
     log = AuditLog(
         user_id=user_id,

@@ -16,7 +16,7 @@ from app.reports.routes import reports_bp
 from app.settings.routes import settings_bp
 from app.transactions.routes import transactions_bp
 from app.utils.auth import apply_auth_cookie, load_user_from_session
-from app.utils.formatting import currency, yes_no
+from app.utils.formatting import currency, status_badge_class, yes_no
 
 PUBLIC_ENDPOINTS = {
     "index",
@@ -70,13 +70,18 @@ def register_hooks(app: Flask) -> None:
         parts = urlsplit(request.url)
         return urlunsplit(("https", parts.netloc, parts.path, parts.query, parts.fragment))
 
+    def _login_redirect():
+        if request.method in {"GET", "HEAD"}:
+            return redirect(url_for("auth.login", next=request.full_path))
+        return redirect(url_for("auth.login"))
+
     @app.before_request
     def enforce_security():
         load_user_from_session()
         if app.config["FORCE_HTTPS"] and not request.is_secure:
             return redirect(_https_url(), code=301)
         if request.endpoint and request.endpoint not in PUBLIC_ENDPOINTS and not getattr(g, "current_user", None):
-            return redirect(url_for("auth.login", next=request.full_path))
+            return _login_redirect()
 
     @app.after_request
     def finalize_auth(response):
@@ -95,6 +100,7 @@ def register_hooks(app: Flask) -> None:
 def register_filters(app: Flask) -> None:
     app.jinja_env.filters["currency"] = currency
     app.jinja_env.filters["yes_no"] = yes_no
+    app.jinja_env.filters["status_badge_class"] = status_badge_class
 
 
 def register_blueprints(app: Flask) -> None:
@@ -130,7 +136,7 @@ def register_errors(app: Flask) -> None:
 
 
 def register_shell_context(app: Flask) -> None:
-    from app import models
+    import app.models as models
 
     @app.shell_context_processor
     def shell_context():

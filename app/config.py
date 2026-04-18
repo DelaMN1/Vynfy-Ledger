@@ -36,6 +36,13 @@ def _is_production() -> bool:
     return DEFAULT_CONFIG_NAME == "production"
 
 
+def _csrf_time_limit() -> int | None:
+    value = (os.getenv("WTF_CSRF_TIME_LIMIT") or "").strip()
+    if not value or value.lower() == "none":
+        return None
+    return int(value)
+
+
 def _secret_setting(name: str) -> str:
     value = (os.getenv(name) or "").strip()
     if value and value.lower() not in _INSECURE_SECRET_VALUES and len(value) >= 32:
@@ -52,7 +59,8 @@ class Config:
     SECURITY_PASSWORD_SALT = _secret_setting("SECURITY_PASSWORD_SALT")
     SQLALCHEMY_DATABASE_URI = _database_uri()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    WTF_CSRF_TIME_LIMIT = 3600
+    # Keep CSRF tokens valid for long-lived pages like the logout form.
+    WTF_CSRF_TIME_LIMIT = _csrf_time_limit()
     REMEMBER_COOKIE_HTTPONLY = True
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"

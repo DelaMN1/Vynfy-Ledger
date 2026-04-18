@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.extensions import db
 from app.models import User
 from app.reports.services import build_report
-from app.transactions.services import TransactionFilters
+from app.utils.types import TransactionFilters
 
 
 def test_report_metrics_calculate_correctly(app, sample_data):

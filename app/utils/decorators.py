@@ -9,11 +9,18 @@ from app.extensions import db
 from app.utils.auth import revoke_session
 from app.utils.time import utcnow
 
+
+def _auth_redirect():
+    if request.method in {"GET", "HEAD"}:
+        return redirect(url_for("auth.login", next=request.full_path))
+    return redirect(url_for("auth.login"))
+
+
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
         if not getattr(g, "current_user", None):
-            return redirect(url_for("auth.login", next=request.full_path))
+            return _auth_redirect()
         return view(*args, **kwargs)
 
     return wrapped
@@ -33,7 +40,7 @@ def admin_required(view):
             db.session.commit()
             g.clear_session_cookie = True
             flash("Admin access requires a fresh sign-in.", "warning")
-            return redirect(url_for("auth.login", next=request.full_path))
+            return _auth_redirect()
         return view(*args, **kwargs)
 
     return wrapped

@@ -5,13 +5,33 @@ from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
+from typing import Protocol, TypedDict
 
 import pytest
+from flask import Response
 
 from app import create_app
 from app.extensions import db
 from app.models import Account, Category, PaymentMethod, Transaction, User
-from app.utils.enums import CategoryType, ExpenseStatus, RevenueStatus, Role, TransactionType
+from app.utils.enums import AccountType, CategoryType, ExpenseStatus, RevenueStatus, Role, TransactionType
+
+
+class SampleData(TypedDict):
+    admin_id: int
+    staff_id: int
+    revenue_staff_id: int
+    outsider_id: int
+    draft_expense_id: int
+    submitted_expense_id: int
+    revenue_id: int
+    account_id: int
+    expense_category_id: int
+    revenue_category_id: int
+    payment_method_id: int
+
+
+class LoginHelper(Protocol):
+    def __call__(self, email: str, password: str, *, finish: bool = True) -> Response: ...
 
 
 @pytest.fixture
@@ -49,7 +69,7 @@ def client(app):
 
 
 @pytest.fixture
-def sample_data(app):
+def sample_data(app) -> SampleData:
     with app.app_context():
         admin = User(full_name="Admin User", email="admin@example.com", role=Role.ADMIN.value, email_verified=True, can_create_revenue=True)
         admin.set_password("AdminPassword123")
@@ -64,7 +84,13 @@ def sample_data(app):
 
         rev_category = Category(name="Consulting", type=CategoryType.REVENUE.value, color="#15803d")
         exp_category = Category(name="Operations", type=CategoryType.EXPENSE.value, color="#dc2626")
-        account = Account(name="Main Account", type="bank", opening_balance=Decimal("1000.00"), current_balance_cached=Decimal("1000.00"), currency_code="GHS")
+        account = Account(
+            name="Main Account",
+            type=AccountType.BANK.value,
+            opening_balance=Decimal("1000.00"),
+            current_balance_cached=Decimal("1000.00"),
+            currency_code="GHS",
+        )
         payment_method = PaymentMethod(name="Bank Transfer")
         db.session.add_all([rev_category, exp_category, account, payment_method])
         db.session.flush()
@@ -127,7 +153,7 @@ def sample_data(app):
 
 
 @pytest.fixture
-def login(client):
+def login(client) -> LoginHelper:
     def _latest_outbox_code() -> str:
         outbox_dir = Path(client.application.config["OUTBOX_FOLDER"])
         latest = max(outbox_dir.glob("*.txt"), key=lambda path: path.stat().st_mtime)
@@ -136,7 +162,7 @@ def login(client):
             raise AssertionError("No login code found in latest outbox email.")
         return match.group(1)
 
-    def _login(email: str, password: str, *, finish: bool = True):
+    def _login(email: str, password: str, *, finish: bool = True) -> Response:
         response = client.post("/login", data={"email": email, "password": password}, follow_redirects=False)
         if not finish:
             return response

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from flask import Blueprint, render_template
 
-from app.admin.services import pending_approvals
 from app.utils.decorators import admin_required
+from app.transactions.services import pending_approvals
 
 
 admin_bp = Blueprint("admin", __name__)

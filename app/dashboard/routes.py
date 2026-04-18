@@ -11,7 +11,7 @@ dashboard_bp = Blueprint("dashboard", __name__)
 
 @dashboard_bp.get("/dashboard")
 @login_required
-def overview():
+def overview() -> str:
     context = dashboard_context(g.current_user, range_key=request.args.get("range", "month"))
     if request.headers.get("HX-Request"):
         return render_template("dashboard/_dashboard_content.html", **context)
