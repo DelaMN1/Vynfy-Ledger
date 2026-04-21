@@ -19,3 +19,10 @@ def test_csv_export_works(client, sample_data, login):
     assert response.status_code == 200
     assert response.mimetype.startswith("text/csv")
     assert b"label,value" in response.data
+
+
+def test_report_export_filename_is_sanitized(client, sample_data, login):
+    login("admin@example.com", "AdminPassword123")
+    response = client.get("/reports/export/csv?report=../../evil")
+    assert response.status_code == 200
+    assert response.headers["Content-Disposition"] == "attachment; filename=transactions.csv"

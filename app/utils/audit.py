@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from flask import request
-
 from app.extensions import db
 from app.models.audit_log import AuditLog
+from app.utils.security import get_request_ip
 from app.utils.types import JsonValue
 
 
@@ -23,6 +22,6 @@ def record_audit(
         action=action,
         old_values_json=old_values,
         new_values_json=new_values,
-        ip_address=request.headers.get("X-Forwarded-For", request.remote_addr),
+        ip_address=get_request_ip(),
     )
     db.session.add(log)

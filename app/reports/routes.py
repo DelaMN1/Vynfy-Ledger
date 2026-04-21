@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, Response, g, render_template, request
 
-from app.reports.services import REPORT_OPTIONS, build_report, export_report_csv
+from app.reports.services import REPORT_OPTIONS, build_report, export_report_csv, normalize_report_key
 from app.transactions.forms import TransactionFilterForm
 from app.utils.decorators import login_required
 from app.utils.types import TransactionFilters
@@ -37,4 +37,5 @@ def index() -> str:
 def export_csv() -> Response:
     report_key = request.args.get("report", "cash_flow_monthly")
     content = export_report_csv(g.current_user, report_key, _filters())
-    return Response(content, mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": f"attachment; filename={report_key}.csv"})
+    filename = f"{normalize_report_key(report_key)}.csv"
+    return Response(content, mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": f"attachment; filename={filename}"})

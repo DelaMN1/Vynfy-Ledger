@@ -4,10 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script nonce="{{ csp_nonce }}" src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script nonce="{{ csp_nonce }}" src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script nonce="{{ csp_nonce }}" src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   </head>
   <body class="min-h-screen bg-slate-100 text-slate-900">
@@ -62,6 +61,6 @@
         {% block auth_content %}{% endblock %}
       </main>
     {% endif %}
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script nonce="{{ csp_nonce }}" src="{{ url_for('static', filename='js/app.js') }}"></script>
   </body>
 </html>

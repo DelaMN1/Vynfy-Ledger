@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import re
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
-from uuid import uuid4
 from typing import Protocol, TypedDict
+from uuid import uuid4
 
 import pytest
 from flask import Response
@@ -154,19 +153,7 @@ def sample_data(app) -> SampleData:
 
 @pytest.fixture
 def login(client) -> LoginHelper:
-    def _latest_outbox_code() -> str:
-        outbox_dir = Path(client.application.config["OUTBOX_FOLDER"])
-        latest = max(outbox_dir.glob("*.txt"), key=lambda path: path.stat().st_mtime)
-        match = re.search(r"Use this sign-in code to complete your login: (\d{6})", latest.read_text(encoding="utf-8"))
-        if not match:
-            raise AssertionError("No login code found in latest outbox email.")
-        return match.group(1)
-
     def _login(email: str, password: str, *, finish: bool = True) -> Response:
-        response = client.post("/login", data={"email": email, "password": password}, follow_redirects=False)
-        if not finish:
-            return response
-        code = _latest_outbox_code()
-        return client.post("/login/verify", data={"code": code}, follow_redirects=False)
+        return client.post("/login", data={"email": email, "password": password}, follow_redirects=False)
 
     return _login

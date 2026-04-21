@@ -8,7 +8,7 @@ from flask import Response, current_app, g, request
 from app.extensions import db
 from app.models.session import UserSession
 from app.models.user import User
-from app.utils.security import generate_session_token, hash_token
+from app.utils.security import generate_session_token, get_request_ip, get_request_user_agent, hash_token
 from app.utils.time import utcnow
 
 
@@ -26,18 +26,19 @@ def create_session(
     *,
     ip_address: str | None,
     user_agent: str | None,
-    second_factor_at: datetime | None = None,
+    authenticated_at: datetime | None = None,
     replaced_session: UserSession | None = None,
 ) -> str:
     raw_token = generate_session_token()
     issued_at, expires_at = _session_expiry()
-    second_factor_verified_at = second_factor_at or issued_at
+    full_auth_time = authenticated_at or issued_at
     session = UserSession(
         user_id=user.id,
         token_hash=hash_token(raw_token),
         issued_at=issued_at,
         expires_at=expires_at,
-        second_factor_verified_at=second_factor_verified_at,
+        # Legacy column reused to track the last full credential-based authentication time.
+        second_factor_verified_at=full_auth_time,
         ip_address=ip_address,
         user_agent=user_agent,
     )
@@ -81,9 +82,9 @@ def load_user_from_session() -> None:
     if utcnow() - session.issued_at >= rotate_after:
         new_token = create_session(
             session.user,
-            ip_address=request.headers.get("X-Forwarded-For", request.remote_addr),
-            user_agent=request.user_agent.string,
-            second_factor_at=session.second_factor_verified_at,
+            ip_address=get_request_ip(),
+            user_agent=get_request_user_agent(),
+            authenticated_at=session.second_factor_verified_at,
             replaced_session=session,
         )
         g.session_cookie_to_set = new_token

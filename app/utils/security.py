@@ -7,7 +7,7 @@ from typing import cast
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from flask import current_app
+from flask import current_app, has_request_context, request
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from app.utils.types import TokenPayload
@@ -85,3 +85,17 @@ def hash_token(token: str) -> str:
 def generate_numeric_code(length: int = 6) -> str:
     digits = [str(random.SystemRandom().randrange(10)) for _ in range(length)]
     return "".join(digits)
+
+
+def get_request_ip() -> str | None:
+    if not has_request_context():
+        return None
+    value = (request.remote_addr or "").strip()
+    return value[:64] or None
+
+
+def get_request_user_agent() -> str | None:
+    if not has_request_context():
+        return None
+    value = (request.user_agent.string or "").strip()
+    return value[:255] or None

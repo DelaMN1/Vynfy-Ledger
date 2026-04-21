@@ -26,6 +26,11 @@ REPORT_OPTIONS: ReportOptions = (
 )
 
 
+def normalize_report_key(report_key: str) -> str:
+    report_keys = {value for value, _label in REPORT_OPTIONS}
+    return report_key if report_key in report_keys else "transactions"
+
+
 def build_report(user: User, report_key: str, filters: TransactionFilters) -> ReportResult:
     rows: defaultdict[str, Decimal] = defaultdict(Decimal)
     items = apply_filters(visible_transactions_query(user), filters).order_by(Transaction.transaction_date.asc()).all()
@@ -63,6 +68,7 @@ def build_report(user: User, report_key: str, filters: TransactionFilters) -> Re
 
 
 def export_report_csv(user: User, report_key: str, filters: TransactionFilters) -> str:
+    report_key = normalize_report_key(report_key)
     report_keys = {value for value, _label in REPORT_OPTIONS}
     report = build_report(user, report_key, filters)
     if report_key in report_keys:

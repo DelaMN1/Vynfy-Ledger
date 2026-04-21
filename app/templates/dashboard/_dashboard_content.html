@@ -22,7 +22,7 @@
         <tbody class="divide-y divide-slate-100">
           {% for item in recent_transactions %}
             {% set status = item.status %}
-            <tr class="cursor-pointer hover:bg-slate-50" onclick="window.location='{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}'">
+            <tr class="cursor-pointer hover:bg-slate-50" data-row-link="{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}" tabindex="0" role="link">
               <td class="py-3">{{ item.title }}</td>
               <td class="py-3 capitalize">{{ item.transaction_type }}</td>
               <td class="py-3">{{ item.amount|currency }}</td>
@@ -46,7 +46,7 @@
     </div>
   </div>
 </div>
-  <script>
+  <script nonce="{{ csp_nonce }}">
   new Chart(document.getElementById("expense-chart"), {
     type: "doughnut",
     data: { labels: {{ expense_chart["labels"]|tojson }}, datasets: [{ data: {{ expense_chart["values"]|tojson }}, backgroundColor: ["#0f766e","#15803d","#b45309","#dc2626","#1d4ed8"] }] },

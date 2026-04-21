@@ -37,7 +37,7 @@
       </div>
     </div>
   </div>
-  <script>
+  <script nonce="{{ csp_nonce }}">
     new Chart(document.getElementById("report-chart"), {
       type: "bar",
       data: { labels: {{ report["labels"]|tojson }}, datasets: [{ label: "Value", data: {{ report["values"]|tojson }}, backgroundColor: "#0f172a" }] },

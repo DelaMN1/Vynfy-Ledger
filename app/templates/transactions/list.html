@@ -29,7 +29,7 @@
         <tbody class="divide-y divide-slate-100">
           {% for item in pagination.items %}
             {% set status = item.status %}
-            <tr class="cursor-pointer hover:bg-slate-50" onclick="window.location='{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}'">
+            <tr class="cursor-pointer hover:bg-slate-50" data-row-link="{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}" tabindex="0" role="link">
               <td class="py-4">{{ item.title }}</td>
               <td class="py-4">{{ item.counterparty or "-" }}</td>
               <td class="py-4">{{ item.transaction_date.strftime('%d %b %Y') }}</td>

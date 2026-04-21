@@ -97,14 +97,10 @@ class VerificationTokenPayload(TypedDict):
 class PasswordResetTokenPayload(TypedDict):
     purpose: Literal["reset-password"]
     user_id: int
+    password_changed_at: str
 
 
-class LoginChallengeTokenPayload(TypedDict):
-    purpose: Literal["login-challenge"]
-    challenge_id: int
-
-
-TokenPayload: TypeAlias = VerificationTokenPayload | PasswordResetTokenPayload | LoginChallengeTokenPayload
+TokenPayload: TypeAlias = VerificationTokenPayload | PasswordResetTokenPayload
 
 
 class TransactionChoiceForm(Protocol):

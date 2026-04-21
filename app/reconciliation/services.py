@@ -81,7 +81,9 @@ def create_session_from_form(*, form: ReconciliationForm, actor: User) -> Reconc
     return session
 
 
-def get_session_or_404(session_id: int) -> ReconciliationSession:
+def get_session_or_404(session_id: int, *, actor: User) -> ReconciliationSession:
+    if not actor.is_admin:
+        raise ServiceError("Only admins can access reconciliation sessions.")
     session = db.session.get(ReconciliationSession, session_id)
     if not session:
         raise ServiceError("Reconciliation session not found.")
@@ -105,6 +107,9 @@ def finalize_session(*, session: ReconciliationSession, actor: User, selected_tr
     if not actor.is_admin:
         raise ServiceError("Only admins can finalize reconciliation.")
     normalized_ids = sorted(set(selected_transaction_ids))
+    allowed_ids = {item.id for item in reconciliation_transactions(session)}
+    if any(item_id not in allowed_ids for item_id in normalized_ids):
+        raise ServiceError("Selected transactions must belong to the reconciliation account and period.")
     if session.status == ReconciliationStatus.FINALIZED.value:
         if session.completed_by_id == actor.id and (session.selected_transaction_ids or []) == normalized_ids:
             return

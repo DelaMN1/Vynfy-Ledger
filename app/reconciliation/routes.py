@@ -11,14 +11,14 @@ from app.reconciliation.services import (
     reconciliation_accounts,
     reconciliation_transactions,
 )
-from app.utils.decorators import admin_required, login_required
+from app.utils.decorators import admin_required
 
 
 reconciliation_bp = Blueprint("reconciliation", __name__)
 
 
 @reconciliation_bp.get("/reconciliation")
-@login_required
+@admin_required
 def index():
     form = ReconciliationForm()
     form.account_id.choices = reconciliation_accounts()
@@ -27,7 +27,7 @@ def index():
     session_id = request.args.get("session_id", type=int)
     if session_id:
         try:
-            active_session = get_session_or_404(session_id)
+            active_session = get_session_or_404(session_id, actor=g.current_user)
             transactions = reconciliation_transactions(active_session)
         except ValueError as exc:
             flash(str(exc), "error")
@@ -55,7 +55,7 @@ def start():
 @admin_required
 def finalize(session_id: int):
     try:
-        session = get_session_or_404(session_id)
+        session = get_session_or_404(session_id, actor=g.current_user)
         selected_transaction_ids = [int(value) for value in request.form.getlist("transaction_ids")]
         finalize_session(session=session, actor=g.current_user, selected_transaction_ids=selected_transaction_ids)
         db.session.commit()

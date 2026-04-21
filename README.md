@@ -16,7 +16,7 @@ This README is intended to be enough for a new engineer to:
 Vynfy Ledger supports:
 
 - user registration and login
-- email verification, password reset, and login challenges
+- email verification and password reset
 - admin and staff roles
 - revenue and expense entry workflows
 - approval and reconciliation flows
@@ -199,8 +199,6 @@ Production secrets must be unique and at least 32 characters long.
 - `SESSION_ROTATE_AFTER_MINUTES`
 - `LOGIN_LOCKOUT_BASE_MINUTES`
 - `MAX_LOGIN_LOCKOUT_MINUTES`
-- `LOGIN_CHALLENGE_MINUTES`
-- `LOGIN_CHALLENGE_MAX_ATTEMPTS`
 - `MAX_FAILED_LOGINS`
 - `PASSWORD_RESET_MINUTES`
 - `ADMIN_STEP_UP_MINUTES`
@@ -312,8 +310,7 @@ The command is intentionally blocked unless seeding is allowed by config.
 
 Authentication flows include:
 
-- password-based first step
-- verification code / login challenge
+- password-based sign-in
 - email verification
 - password reset
 

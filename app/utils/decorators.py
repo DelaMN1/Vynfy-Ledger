@@ -39,7 +39,7 @@ def admin_required(view):
             revoke_session(g.auth_session)
             db.session.commit()
             g.clear_session_cookie = True
-            flash("Admin access requires a fresh sign-in.", "warning")
+            flash("Admin access requires a recent password sign-in.", "warning")
             return _auth_redirect()
         return view(*args, **kwargs)
 

@@ -8,18 +8,25 @@ from pathlib import Path
 from typing import cast
 
 from email_validator import EmailNotValidError, validate_email
-from flask import current_app, g, request, url_for
+from flask import current_app, g, url_for
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
-from app.models.session import LoginChallenge
+from app.models.session import UserSession
 from app.models.user import User
-from app.utils.types import LoginChallengeTokenPayload, PasswordResetTokenPayload, VerificationTokenPayload
 from app.utils.audit import record_audit
 from app.utils.auth import create_session, revoke_session
 from app.utils.exceptions import ServiceError
-from app.utils.security import consume_dummy_password_check, generate_numeric_code, generate_token, hash_token, load_token, validate_password_policy
+from app.utils.security import (
+    consume_dummy_password_check,
+    generate_token,
+    get_request_ip,
+    get_request_user_agent,
+    load_token,
+    validate_password_policy,
+)
 from app.utils.time import utcnow
+from app.utils.types import PasswordResetTokenPayload, VerificationTokenPayload
 
 
 def normalize_email(email: str) -> str:
@@ -31,14 +38,20 @@ def normalize_email(email: str) -> str:
 
 def _send_email(recipient: str, subject: str, body: str) -> None:
     outbox = Path(current_app.config["OUTBOX_FOLDER"])
-    outbox.mkdir(parents=True, exist_ok=True)
+    allow_outbox_fallback = current_app.config["APP_ENV"] != "production"
 
     def write_outbox_copy(reason: str | None = None) -> None:
+        outbox.mkdir(parents=True, exist_ok=True)
         filename = outbox / f"{utcnow().strftime('%Y%m%d%H%M%S%f')}_{subject.replace(' ', '_').lower()}.txt"
         prefix = f"[fallback reason] {reason}\n\n" if reason else ""
         filename.write_text(f"{prefix}To: {recipient}\nSubject: {subject}\n\n{body}", encoding="utf-8")
         current_app.logger.info("Email saved to %s", filename)
-        current_app.logger.info("Email preview for %s:\n%s", recipient, body)
+
+    def fail_delivery(message: str, *, reason: str | None = None) -> None:
+        if allow_outbox_fallback:
+            write_outbox_copy(reason)
+            return
+        raise ServiceError(message)
 
     if current_app.config["SENDGRID_API_KEY"]:
         try:
@@ -58,7 +71,7 @@ def _send_email(recipient: str, subject: str, body: str) -> None:
         except Exception as exc:
             current_app.logger.exception("SendGrid delivery failed; falling back to SMTP/outbox.")
             if not current_app.config["SMTP_HOST"]:
-                write_outbox_copy(str(exc))
+                fail_delivery("Email delivery is temporarily unavailable. Try again later.", reason=str(exc))
                 return
 
     if current_app.config["SMTP_HOST"]:
@@ -77,10 +90,13 @@ def _send_email(recipient: str, subject: str, body: str) -> None:
             return
         except (smtplib.SMTPException, OSError) as exc:
             current_app.logger.exception("SMTP delivery failed; falling back to local outbox.")
-            write_outbox_copy(str(exc))
+            fail_delivery("Email delivery is temporarily unavailable. Try again later.", reason=str(exc))
             return
 
-    write_outbox_copy()
+    if allow_outbox_fallback:
+        write_outbox_copy()
+        return
+    raise ServiceError("Email delivery is not configured for this environment.")
 
 
 def _verification_payload(user: User) -> VerificationTokenPayload:
@@ -92,19 +108,15 @@ def _verification_token(user: User) -> str:
 
 
 def _reset_payload(user: User) -> PasswordResetTokenPayload:
-    return {"purpose": "reset-password", "user_id": user.id}
+    return {
+        "purpose": "reset-password",
+        "user_id": user.id,
+        "password_changed_at": user.password_changed_at.isoformat(),
+    }
 
 
 def _reset_token(user: User) -> str:
     return generate_token(_reset_payload(user))
-
-
-def _login_challenge_payload(challenge: LoginChallenge) -> LoginChallengeTokenPayload:
-    return {"purpose": "login-challenge", "challenge_id": challenge.id}
-
-
-def _login_challenge_token(challenge: LoginChallenge) -> str:
-    return generate_token(_login_challenge_payload(challenge))
 
 
 def send_verification_email(user: User) -> None:
@@ -114,20 +126,6 @@ def send_verification_email(user: User) -> None:
         user.email,
         "Verify your Vynfy Ledger account",
         f"Hello {user.full_name},\n\nVerify your email to access Vynfy Ledger:\n{verification_url}\n",
-    )
-
-
-def send_login_code_email(user: User, challenge: LoginChallenge, code: str) -> None:
-    magic_url = url_for("auth.login_magic", token=_login_challenge_token(challenge), _external=True)
-    _send_email(
-        user.email,
-        "Your Vynfy Ledger sign-in code",
-        (
-            f"Hello {user.full_name},\n\n"
-            f"Use this sign-in code to complete your login: {code}\n\n"
-            f"Or use this magic link:\n{magic_url}\n\n"
-            f"This code expires in {current_app.config['LOGIN_CHALLENGE_MINUTES']} minutes."
-        ),
     )
 
 
@@ -227,17 +225,38 @@ def reset_user_password(token: str, password: str) -> User:
     user = db.session.get(User, reset_payload["user_id"])
     if not user:
         raise ServiceError("Password reset link is invalid.")
+    if user.password_changed_at.isoformat() != reset_payload["password_changed_at"]:
+        raise ServiceError("Password reset link is invalid.")
     password_errors = validate_password_policy(password)
     if password_errors:
         raise ServiceError(" ".join(password_errors))
     user.set_password(password)
     user.failed_login_attempts = 0
     user.locked_until = None
+    now = utcnow()
+    UserSession.query.filter(UserSession.user_id == user.id, UserSession.revoked_at.is_(None)).update({"revoked_at": now})
     record_audit(user_id=user.id, entity_type="user", entity_id=user.id, action="password_reset")
     return user
 
 
-def authenticate_user(*, email: str, password: str) -> LoginChallenge:
+def complete_password_login(user: User) -> str:
+    authenticated_at = utcnow()
+    UserSession.query.filter(UserSession.user_id == user.id, UserSession.revoked_at.is_(None)).update({"revoked_at": authenticated_at})
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    user.last_login_at = authenticated_at
+    token = create_session(
+        user,
+        ip_address=get_request_ip(),
+        user_agent=get_request_user_agent(),
+        authenticated_at=authenticated_at,
+    )
+    g.session_cookie_to_set = token
+    record_audit(user_id=user.id, entity_type="auth", entity_id=user.id, action="login")
+    return token
+
+
+def authenticate_user(*, email: str, password: str) -> str:
     normalized_email = normalize_email(email)
     user = User.query.filter_by(email=normalized_email).first()
     if not user:
@@ -275,86 +294,7 @@ def authenticate_user(*, email: str, password: str) -> LoginChallenge:
         send_verification_email(user)
         raise ServiceError("Verify your email before signing in. A fresh link has been sent.")
 
-    return start_login_challenge(user)
-
-
-def _get_active_challenge(challenge_id: int) -> LoginChallenge:
-    challenge = db.session.get(LoginChallenge, challenge_id)
-    if not challenge:
-        raise ServiceError("Your sign-in session is missing. Start again.")
-    if challenge.consumed_at:
-        raise ServiceError("This sign-in code has already been used. Start again.")
-    if challenge.expires_at <= utcnow():
-        raise ServiceError("This sign-in code has expired. Start again.")
-    return challenge
-
-
-def start_login_challenge(user: User) -> LoginChallenge:
-    now = utcnow()
-    LoginChallenge.query.filter(
-        LoginChallenge.user_id == user.id,
-        LoginChallenge.consumed_at.is_(None),
-        LoginChallenge.expires_at > now,
-    ).update({"consumed_at": now})
-    code = generate_numeric_code()
-    challenge = LoginChallenge(
-        user_id=user.id,
-        code_hash=hash_token(code),
-        expires_at=now + timedelta(minutes=current_app.config["LOGIN_CHALLENGE_MINUTES"]),
-        max_attempts=current_app.config["LOGIN_CHALLENGE_MAX_ATTEMPTS"],
-        ip_address=request.headers.get("X-Forwarded-For", request.remote_addr),
-        user_agent=request.user_agent.string,
-    )
-    db.session.add(challenge)
-    db.session.flush()
-    send_login_code_email(user, challenge, code)
-    record_audit(user_id=user.id, entity_type="auth", entity_id=challenge.id, action="login_challenge_sent")
-    return challenge
-
-
-def resend_login_challenge(challenge_id: int) -> LoginChallenge:
-    challenge = _get_active_challenge(challenge_id)
-    challenge.consumed_at = utcnow()
-    return start_login_challenge(challenge.user)
-
-
-def complete_login_challenge(challenge: LoginChallenge) -> str:
-    user = challenge.user
-    second_factor_at = utcnow()
-    user.failed_login_attempts = 0
-    user.locked_until = None
-    user.last_login_at = second_factor_at
-    challenge.consumed_at = second_factor_at
-    token = create_session(
-        user,
-        ip_address=request.headers.get("X-Forwarded-For", request.remote_addr),
-        user_agent=request.user_agent.string,
-        second_factor_at=second_factor_at,
-    )
-    g.session_cookie_to_set = token
-    record_audit(user_id=user.id, entity_type="auth", entity_id=challenge.id, action="login")
-    return token
-
-
-def verify_login_code(*, challenge_id: int, code: str) -> str:
-    challenge = _get_active_challenge(challenge_id)
-    if challenge.attempt_count >= challenge.max_attempts:
-        challenge.consumed_at = utcnow()
-        raise ServiceError("Too many invalid code attempts. Start again.")
-    if hash_token(code.strip()) != challenge.code_hash:
-        challenge.attempt_count += 1
-        record_audit(user_id=challenge.user_id, entity_type="auth", entity_id=challenge.id, action="login_code_failed")
-        raise ServiceError("Invalid sign-in code.")
-    return complete_login_challenge(challenge)
-
-
-def complete_login_magic_token(token: str) -> str:
-    payload = load_token(token, max_age=current_app.config["LOGIN_CHALLENGE_MINUTES"] * 60)
-    if payload["purpose"] != "login-challenge":
-        raise ServiceError("Magic link is invalid.")
-    login_payload = cast(LoginChallengeTokenPayload, payload)
-    challenge = _get_active_challenge(login_payload["challenge_id"])
-    return complete_login_challenge(challenge)
+    return complete_password_login(user)
 
 
 def logout_current_user() -> None:

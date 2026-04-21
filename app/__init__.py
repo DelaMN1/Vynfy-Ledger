@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -21,14 +22,11 @@ from app.utils.formatting import currency, status_badge_class, yes_no
 PUBLIC_ENDPOINTS = {
     "index",
     "auth.login",
-    "auth.verify_login",
-    "auth.login_magic",
     "auth.register",
     "auth.verify_email",
     "auth.forgot_password",
     "auth.reset_password",
     "auth.resend_verification",
-    "auth.resend_login",
     "static",
 }
 
@@ -77,6 +75,7 @@ def register_hooks(app: Flask) -> None:
 
     @app.before_request
     def enforce_security():
+        g.csp_nonce = secrets.token_urlsafe(16)
         load_user_from_session()
         if app.config["FORCE_HTTPS"] and not request.is_secure:
             return redirect(_https_url(), code=301)
@@ -85,16 +84,39 @@ def register_hooks(app: Flask) -> None:
 
     @app.after_request
     def finalize_auth(response):
+        csp_nonce = getattr(g, "csp_nonce", "")
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "; ".join(
+                [
+                    "default-src 'self'",
+                    f"script-src 'self' 'nonce-{csp_nonce}' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com",
+                    "style-src 'self' 'unsafe-inline'",
+                    "img-src 'self' data:",
+                    "font-src 'self' https://cdn.jsdelivr.net",
+                    "connect-src 'self'",
+                    "base-uri 'self'",
+                    "form-action 'self'",
+                    "frame-ancestors 'none'",
+                    "object-src 'none'",
+                ]
+            ),
+        )
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(), geolocation=(), microphone=()")
         if app.config["FORCE_HTTPS"] and request.is_secure:
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
         return apply_auth_cookie(response)
 
     @app.context_processor
     def inject_globals():
-        return {"current_user": getattr(g, "current_user", None), "app_name": app.config["APP_NAME"]}
+        return {
+            "current_user": getattr(g, "current_user", None),
+            "app_name": app.config["APP_NAME"],
+            "csp_nonce": getattr(g, "csp_nonce", ""),
+        }
 
 
 def register_filters(app: Flask) -> None:

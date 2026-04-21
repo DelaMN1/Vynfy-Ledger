@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask_wtf import FlaskForm
 from wtforms import BooleanField, PasswordField, SelectField, StringField, SubmitField
-from wtforms.validators import DataRequired, Email, EqualTo, Length, Regexp
+from wtforms.validators import DataRequired, Email, EqualTo, Length
 
 from app.utils.enums import Role
 
@@ -54,15 +54,3 @@ class AdminUserForm(FlaskForm):
 class ResendVerificationForm(FlaskForm):
     email = StringField("Email", validators=[DataRequired(), Email(), Length(max=255)])
     submit = SubmitField("Resend verification")
-
-
-class LoginCodeForm(FlaskForm):
-    code = StringField(
-        "Verification code",
-        validators=[DataRequired(), Length(min=6, max=6), Regexp(r"^\d{6}$", message="Enter the 6-digit code.")],
-    )
-    submit = SubmitField("Verify and sign in")
-
-
-class ResendLoginCodeForm(FlaskForm):
-    submit = SubmitField("Resend code")

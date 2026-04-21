@@ -4,6 +4,7 @@ from app.extensions import db
 from app.models.base import TimestampMixin
 from app.utils.enums import Role
 from app.utils.security import hash_password, verify_password
+from app.utils.time import utcnow
 
 
 class User(TimestampMixin, db.Model):
@@ -20,6 +21,7 @@ class User(TimestampMixin, db.Model):
     failed_login_attempts = db.Column(db.Integer, nullable=False, default=0)
     locked_until = db.Column(db.DateTime(timezone=True))
     last_login_at = db.Column(db.DateTime(timezone=True))
+    password_changed_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
     submitted_transactions = db.relationship(
         "Transaction", foreign_keys="Transaction.submitted_by_id", back_populates="submitted_by", lazy="dynamic"
@@ -38,6 +40,7 @@ class User(TimestampMixin, db.Model):
 
     def set_password(self, password: str) -> None:
         self.password_hash = hash_password(password)
+        self.password_changed_at = utcnow()
 
     def check_password(self, password: str) -> bool:
         return verify_password(self.password_hash, password)
