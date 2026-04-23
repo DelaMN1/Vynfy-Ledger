@@ -1,110 +1,68 @@
 # Vynfy Ledger
 
-Vynfy Ledger is an internal finance operations application for tracking revenue, expenses, approvals, reconciliations, and audit activity. It is built with Flask, SQLAlchemy, Flask-Migrate, WTForms, server-rendered Jinja templates, and SQLite by default.
+Vynfy Ledger is a Flask-based internal finance operations app for tracking revenue, expenses, approvals, reporting, reconciliation, and audit activity.
 
-This README is intended to be enough for a new engineer to:
+The app is now PostgreSQL-first for normal runtime use. SQLite is not a supported runtime database for development or production. The old SQLite database, if present, should be treated only as a migration/archive source.
 
-- understand what the application does
-- start it locally
-- configure the environment correctly
-- run tests and migrations
-- troubleshoot common setup problems
-- contribute changes safely
+## Current Stack
 
-## What The App Does
-
-Vynfy Ledger supports:
-
-- user registration and login
-- email verification and password reset
-- admin and staff roles
-- revenue and expense entry workflows
-- approval and reconciliation flows
-- dashboard metrics and reports
-- CSV exports
-- audit logging
-- file attachments
-
-## Stack
-
-- Python 3.13 recommended
+- Python 3.13
 - Flask
 - Flask-SQLAlchemy
 - Flask-Migrate / Alembic
 - Flask-WTF
 - Flask-Limiter
 - WTForms
-- argon2-cffi
-- SQLite by default
+- PostgreSQL via `psycopg`
+- Jinja templates with server-rendered HTML
+
+## Main Capabilities
+
+- password-based authentication
+- email verification and password reset
+- admin and staff roles
+- revenue and expense workflows
+- approval queue and admin-only actions
+- reports with CSV export
+- reconciliation workflows
+- budgets, spend policies, and accounting mappings
+- audit logging
+- attachment handling
 
 ## Repository Layout
 
 ```text
 vynfy_ledger/
-├── app/
-│   ├── admin/               # admin views
-│   ├── auth/                # authentication and account flows
-│   ├── dashboard/           # dashboard views and aggregation
-│   ├── models/              # SQLAlchemy models
-│   ├── reconciliation/      # reconciliation flows
-│   ├── reports/             # reporting and exports
-│   ├── settings/            # admin-managed reference data
-│   ├── static/              # CSS / JS
-│   ├── templates/           # Jinja templates
-│   ├── transactions/        # revenue and expense workflows
-│   └── utils/               # shared helpers, enums, types, auth, security
-├── migrations/              # Alembic migrations
-├── tests/                   # pytest suite
-├── .env.example             # local environment template
-├── requirements.txt         # Python dependencies
-└── run.py                   # local app entrypoint
+app/                    Flask app package
+  admin/                admin views
+  auth/                 login, registration, password reset, verification
+  dashboard/            dashboard aggregation and views
+  models/               SQLAlchemy models
+  reconciliation/       reconciliation flows
+  reports/              reports and CSV export
+  settings/             categories, accounts, users, budgets, policies, mappings
+  static/               CSS and JS
+  templates/            Jinja templates
+  transactions/         revenue and expense flows
+  utils/                auth, time, security, formatting, enums, types
+migrations/             Alembic migration history
+scripts/                operational scripts, including SQLite -> PostgreSQL import
+tests/                  pytest suite
+.env.example            environment template
+requirements.txt        Python dependencies
+run.py                  local app entrypoint
 ```
 
-## Prerequisites
+## Local Setup
 
-Before you start, make sure you have:
-
-- Python installed
-- PowerShell or another shell
-- Git
-
-Recommended:
-
-- Python 3.13
-- a dedicated virtual environment for this repo
-
-## Quick Start
-
-From the repo root:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-python -m flask --app run.py db upgrade
-python run.py
-```
-
-The app will start using the configuration in `.env`.
-
-Default local URL:
-
-```text
-http://127.0.0.1:5000
-```
-
-## First-Time Local Setup
-
-### 1. Create and activate a virtual environment
+### 1. Create a virtual environment
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-If PowerShell blocks activation, you can still use the venv directly:
+If PowerShell blocks activation, use the venv interpreter directly:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
@@ -118,7 +76,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-### 3. Create your environment file
+### 3. Create `.env`
 
 ```powershell
 Copy-Item .env.example .env
@@ -126,33 +84,34 @@ Copy-Item .env.example .env
 
 The app loads `.env` automatically through `python-dotenv`.
 
-### 4. Apply database migrations
+### 4. Set `DATABASE_URL`
+
+Point the app at a PostgreSQL database.
+
+Example:
+
+```text
+postgresql+psycopg://<user>:<password>@localhost:5432/vynfy_ledger
+```
+
+If your password contains reserved URL characters such as `#`, encode them in the URL.
+
+### 5. Apply migrations
 
 ```powershell
 python -m flask --app run.py db upgrade
 ```
 
-### 5. Run the app
+### 6. Run the app
 
 ```powershell
 python run.py
 ```
 
-## Running With Flask CLI
+Default local URL:
 
-You can also use the Flask CLI instead of `run.py`:
-
-```powershell
-python -m flask --app run.py run
-```
-
-Useful commands:
-
-```powershell
-python -m flask --app run.py routes
-python -m flask --app run.py shell
-python -m flask --app run.py db current
-python -m flask --app run.py db history
+```text
+http://127.0.0.1:5000
 ```
 
 ## Environment Variables
@@ -167,25 +126,16 @@ Use `.env.example` as the starting point.
 
 Production secrets must be unique and at least 32 characters long.
 
-### Core application settings
+### Core settings
 
 - `FLASK_APP`
-  Usually `run.py`
 - `FLASK_ENV`
-  Conventional Flask environment flag. This app also reads `APP_ENV`.
 - `APP_ENV`
-  App environment selection: `development`, `testing`, or `production`
 - `DATABASE_URL`
-  SQLAlchemy database URL. Set this for every environment outside tests.
 - `COMPANY_NAME`
-  Display name used in the UI
 
 ### Security and session settings
 
-- `SECRET_KEY`
-  Flask signing secret
-- `SECURITY_PASSWORD_SALT`
-  Salt used for token signing flows
 - `ACCESS_SESSION_MINUTES`
 - `SESSION_ROTATE_AFTER_MINUTES`
 - `LOGIN_LOCKOUT_BASE_MINUTES`
@@ -194,13 +144,10 @@ Production secrets must be unique and at least 32 characters long.
 - `PASSWORD_RESET_MINUTES`
 - `ADMIN_STEP_UP_MINUTES`
 - `WTF_CSRF_TIME_LIMIT`
-  Blank or `none` means no expiration
 - `FORCE_HTTPS`
 - `TRUST_PROXY_COUNT`
-
-### Feature flags
-
 - `REGISTRATION_ENABLED`
+
 ### Email settings
 
 - `MAIL_FROM`
@@ -211,263 +158,158 @@ Production secrets must be unique and at least 32 characters long.
 - `SMTP_PASSWORD`
 - `SMTP_USE_TLS`
 
-If email is not configured, development flows fall back to writing messages into the local outbox folder.
-
-## Local Development Defaults
-
-Set `DATABASE_URL` to your local PostgreSQL database before running the app.
-
-Example:
-
-```text
-postgresql+psycopg://<user>:<password>@localhost:5432/vynfy_ledger
-```
-
-SQLite is no longer used as the runtime database for development or production.
-If you still have `instance/vynfy_ledger.db`, treat it as a migration/archive source only.
-
-Other local filesystem behavior:
-
-- uploads are stored in `instance/uploads`
-- outbox emails are written to `instance/outbox`
+In non-production environments, email falls back to files in `instance/outbox` when a provider is not configured or delivery fails.
 
 ## Database and Migrations
 
 This project uses Flask-Migrate / Alembic.
 
-### Apply migrations
+Useful commands:
 
 ```powershell
+python -m flask --app run.py db current
+python -m flask --app run.py db history
 python -m flask --app run.py db upgrade
-```
-
-### Create a new migration
-
-```powershell
+python -m flask --app run.py db downgrade
 python -m flask --app run.py db migrate -m "Describe the schema change"
 ```
 
-### Downgrade one revision
+Expectations:
 
-```powershell
-python -m flask --app run.py db downgrade
+- keep model changes and migration files in the same change set
+- review autogenerated migrations before committing
+- do not edit historical migrations casually
+
+## SQLite to PostgreSQL Migration Script
+
+The repo includes a one-time importer:
+
+```text
+scripts/sqlite_to_postgres.py
 ```
 
-### Migration expectations
+Purpose:
 
-- commit model changes and the generated migration together
-- review autogenerated migrations before committing
-- do not hand-edit old historical migrations unless you have a specific reason
+- read from a legacy SQLite database
+- write into a migrated PostgreSQL schema
+- preserve specific users explicitly
+- remove mock or unwanted rows during import
+- support dry-run validation before writing
+
+Example dry run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\sqlite_to_postgres.py ^
+  --source instance\vynfy_ledger.db ^
+  --target-url postgresql+psycopg://<user>:<password>@localhost:5432/vynfy_ledger ^
+  --dry-run
+```
+
+Example real import:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\sqlite_to_postgres.py ^
+  --source instance\vynfy_ledger.db ^
+  --target-url postgresql+psycopg://<user>:<password>@localhost:5432/vynfy_ledger
+```
+
+The importer expects the PostgreSQL schema to already exist via Alembic migrations.
 
 ## Testing
 
-Run the full suite from the project virtual environment:
+Run the full suite:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
 ```
 
-You can also run individual files:
+Run individual files:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\test_auth.py -q
 .\.venv\Scripts\python.exe -m pytest tests\test_transactions.py -q
+.\.venv\Scripts\python.exe -m pytest tests\test_reports.py -q
 ```
 
-### Important
+Notes:
 
-Do not assume system `python` and repo `.venv` are the same interpreter. If you see errors like:
+- the test suite uses its own test database configuration
+- use the repo virtualenv explicitly if you see missing-package errors
 
-```text
-ModuleNotFoundError: No module named 'flask_limiter'
-```
+## Authentication and Email Notes
 
-you are almost certainly using the wrong Python environment. Use the repo venv explicitly.
+Current auth behavior includes:
 
-## Authentication and Email Behavior
-
-Authentication flows include:
-
-- password-based sign-in
+- password login
 - email verification
 - password reset
+- session rotation
+- admin route freshness checks
 
-Email behavior:
+Current email behavior:
 
-- SendGrid is used if configured
-- SMTP is used if configured
-- if neither is available or delivery fails in development-style setups, messages are written to the outbox folder
+- SendGrid if configured
+- SMTP if configured
+- outbox-file fallback outside production when email is unavailable
 
-This means many auth flows can still be tested locally without a live email provider.
+## Filesystem Behavior
 
-## Static Files and Uploads
-
-Attachments are validated and stored locally under:
-
-```text
-instance/uploads
-```
-
-The app enforces a maximum request size of 5 MB.
+- uploads are stored in `instance/uploads`
+- local email fallback files are stored in `instance/outbox`
+- the app enforces a max request size of 5 MB
 
 ## Troubleshooting
 
-### `ModuleNotFoundError` for Flask packages
+### Missing Flask packages or other imports
 
-Cause:
-
-- dependencies are not installed in the current interpreter
-
-Fix:
+Use the repo interpreter:
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python run.py
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-### App starts but database tables are missing
+### Tables are missing
 
-Cause:
-
-- migrations were not applied
-
-Fix:
+Apply migrations:
 
 ```powershell
 python -m flask --app run.py db upgrade
 ```
 
-### No emails are arriving locally
+### Local app still shows old SQLite data
 
-Expected if SMTP or SendGrid is not configured. Check:
+Check `.env` and confirm `DATABASE_URL` points to PostgreSQL.
 
-```text
-instance/outbox
-```
+### HTTPS redirects break local development
 
-### HTTPS redirects are interfering locally
-
-Set in `.env`:
+Set:
 
 ```text
 FORCE_HTTPS=false
 TRUST_PROXY_COUNT=0
 ```
 
-### Tests fail under global Python
+### Local email is not arriving
 
-Use the project interpreter:
+Check:
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
+```text
+instance/outbox
 ```
 
-## Development Workflow
+## Contribution Notes
 
-A safe default workflow for contributors:
-
-1. Pull the latest `main`
-2. Create a feature branch
-3. Activate `.venv`
-4. Install dependencies if needed
-5. Apply migrations
-6. Make code changes
-7. Add or update tests
-8. Run the relevant test files
-9. Run the full test suite before opening a PR
-10. Submit a focused PR with a clear description
-
-## Contributing
-
-### Branching
-
-Use short, descriptive branch names:
-
-- `feature/add-report-filters`
-- `fix/login-challenge-expiry`
-- `refactor/settings-services`
-
-### Commit quality
-
-Prefer clear commit messages that describe intent:
-
-- `Fix admin approval authorization check`
-- `Refactor settings create flows`
-- `Add tests for reconciliation export`
-
-### Code expectations
-
-When contributing:
-
-- preserve existing behavior unless the change is intentional
-- prefer small, focused changes
-- keep business rules in services, not templates
 - keep route handlers thin
-- add tests for bug fixes and workflow changes
-- avoid introducing dead compatibility layers or duplicate logic
-- prefer the existing enum/type/helper patterns already used in `app/utils`
-
-### Before opening a pull request
-
-Run:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
-```
-
-If your change affects schema:
-
-- generate a migration
-- review it
-- include it in the PR
-
-If your change affects auth, transactions, reports, settings, or reconciliation:
-
-- add or update tests in the matching `tests/` area
-
-### Pull request checklist
-
-- code builds and app starts locally
-- migrations apply cleanly
-- relevant tests were added or updated
-- full test suite passes
-- no secrets were committed
-- README or env docs were updated if setup changed
+- keep business rules in service modules
+- add or update tests for behavior changes
+- keep migrations in sync with schema changes
+- avoid compatibility layers that are no longer used in production
+- update `.env.example` and this README when setup changes
 
 ## Security Notes
 
+- do not commit real secrets, database URLs, or API keys
 - production requires strong `SECRET_KEY` and `SECURITY_PASSWORD_SALT`
-- cookies are marked secure in production
-- the app can enforce HTTPS and proxy-aware behavior
-- CSRF protection is enabled outside testing
+- cookies are secure in production
+- CSRF is enabled outside testing
 - audit logging exists for sensitive actions
-
-Do not commit real credentials, API keys, or production database URLs.
-
-## Suggested Local Commands
-
-### Start the app
-
-```powershell
-.\.venv\Scripts\python.exe run.py
-```
-
-### Apply migrations
-
-```powershell
-.\.venv\Scripts\python.exe -m flask --app run.py db upgrade
-```
-
-### Run tests
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
-```
-
-## Notes For Future Maintainers
-
-- Use `.venv` consistently. The system interpreter may not have the repo dependencies.
-- Keep `migrations/` in sync with model changes.
-- If setup changes, update both `.env.example` and this README in the same PR.
-- If you introduce new configuration, document the default, purpose, and whether it is required in production.
