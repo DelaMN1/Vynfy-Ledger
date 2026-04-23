@@ -215,6 +215,58 @@ Example real import:
 
 The importer expects the PostgreSQL schema to already exist via Alembic migrations.
 
+## Render Hosting Prep
+
+The repo now includes a Render blueprint:
+
+```text
+render.yaml
+```
+
+What it prepares:
+
+- a Render PostgreSQL database named `vynfy-ledger-db`
+- a Python web service named `vynfy-ledger`
+- `DATABASE_URL` wired from the Render database connection string
+- generated `SECRET_KEY` and `SECURITY_PASSWORD_SALT`
+- `APP_ENV=production`
+- `gunicorn run:app` as the production start command
+
+### Before creating resources
+
+Review `render.yaml` and adjust names, region, or plan settings if needed.
+
+### After the web service is created
+
+Run migrations against the Render database:
+
+```powershell
+python -m flask --app run.py db upgrade
+```
+
+If you are running this on Render Shell or a Render job, make sure the service environment includes the production `DATABASE_URL`.
+
+### Required production env vars beyond the blueprint defaults
+
+Set these in Render before relying on auth email flows:
+
+- `MAIL_FROM`
+- `SENDGRID_API_KEY`
+
+Without a real email provider, password reset and verification flows will not work in production.
+
+### Importing legacy SQLite data into Render Postgres
+
+The recommended sequence is:
+
+1. create the Render Postgres database
+2. deploy the web service
+3. run `flask db upgrade` against Render Postgres
+4. run `scripts/sqlite_to_postgres.py` against the Render database URL
+5. verify the imported admin account and data
+
+The importer should be run only after the target schema exists.
+
 ## Testing
 
 Run the full suite:

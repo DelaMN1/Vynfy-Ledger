@@ -6,6 +6,7 @@ Flask-WTF==1.2.2
 WTForms==3.2.1
 argon2-cffi==23.1.0
 email-validator==2.2.0
+gunicorn==23.0.0
 psycopg[binary]==3.2.9
 python-dotenv==1.1.1
 sendgrid==6.12.5
