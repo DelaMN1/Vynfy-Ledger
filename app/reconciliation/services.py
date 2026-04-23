@@ -103,6 +103,29 @@ def reconciliation_transactions(session: ReconciliationSession) -> list[Transact
     )
 
 
+def reconciliation_summary(session: ReconciliationSession) -> dict[str, Decimal | int]:
+    items = reconciliation_transactions(session)
+    inflows = sum(
+        Decimal(item.received_amount or item.amount or 0)
+        for item in items
+        if item.transaction_type == TransactionType.REVENUE.value
+    )
+    outflows = sum(
+        Decimal(item.amount or 0)
+        for item in items
+        if item.transaction_type == TransactionType.EXPENSE.value
+    )
+    reconciled_count = sum(1 for item in items if item.is_reconciled)
+    return {
+        "transaction_count": len(items),
+        "reconciled_count": reconciled_count,
+        "unreconciled_count": len(items) - reconciled_count,
+        "inflows": inflows,
+        "outflows": outflows,
+        "net_activity": inflows - outflows,
+    }
+
+
 def finalize_session(*, session: ReconciliationSession, actor: User, selected_transaction_ids: list[int]) -> None:
     if not actor.is_admin:
         raise ServiceError("Only admins can finalize reconciliation.")

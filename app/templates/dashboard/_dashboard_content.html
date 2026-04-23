@@ -1,55 +1,154 @@
 <div class="grid gap-5 xl:grid-cols-4">
-  <div class="rounded-3xl bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Revenue This Month</p><p class="mt-3 text-3xl font-semibold text-emerald-700">{{ summary.revenue_this_month|currency }}</p></div>
-  <div class="rounded-3xl bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Expenses This Month</p><p class="mt-3 text-3xl font-semibold text-rose-700">{{ summary.expenses_this_month|currency }}</p></div>
-  <div class="rounded-3xl bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Net Cash Flow</p><p class="mt-3 text-3xl font-semibold">{{ summary.net_cash_flow|currency }}</p></div>
-  <div class="rounded-3xl bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Cash Snapshot</p><p class="mt-3 text-3xl font-semibold text-slate-900">{{ summary.cash_snapshot|currency }}</p></div>
+  <div class="metric-tile is-hero">
+    <p class="eyebrow text-slate-300">Revenue This Month</p>
+    <p class="metric-value mt-4 text-3xl font-semibold text-white">{{ summary.revenue_this_month|currency }}</p>
+    <p class="mt-3 text-sm text-slate-300">Settled cash collected in the selected range.</p>
+  </div>
+  <div class="metric-tile is-soft">
+    <p class="eyebrow text-slate-500">Expenses This Month</p>
+    <p class="metric-value mt-4 text-3xl font-semibold metric-accent-rose">{{ summary.expenses_this_month|currency }}</p>
+    <p class="mt-3 text-sm text-slate-500">Paid or reimbursed spend already impacting cash.</p>
+  </div>
+  <div class="metric-tile is-soft">
+    <p class="eyebrow text-slate-500">Net Cash Flow</p>
+    <p class="metric-value mt-4 text-3xl font-semibold">{{ summary.net_cash_flow|currency }}</p>
+    <p class="mt-3 text-sm text-slate-500">Revenue minus settled expenses.</p>
+  </div>
+  <div class="metric-tile is-soft">
+    <p class="eyebrow text-slate-500">Cash Snapshot</p>
+    <p class="metric-value mt-4 text-3xl font-semibold metric-accent-teal">{{ summary.cash_snapshot|currency }}</p>
+    <p class="mt-3 text-sm text-slate-500">Combined account balances across active ledgers.</p>
+  </div>
 </div>
-<div class="mt-5 grid gap-5 xl:grid-cols-4">
-  <div class="rounded-3xl border border-slate-200 bg-white p-5"><p class="text-sm text-slate-500">Receivables</p><p class="mt-2 text-2xl font-semibold">{{ summary.outstanding_receivables|currency }}</p></div>
-  <div class="rounded-3xl border border-slate-200 bg-white p-5"><p class="text-sm text-slate-500">Payables</p><p class="mt-2 text-2xl font-semibold">{{ summary.outstanding_payables|currency }}</p></div>
-  <div class="rounded-3xl border border-slate-200 bg-white p-5"><p class="text-sm text-slate-500">Pending Approvals</p><p class="mt-2 text-2xl font-semibold">{{ summary.pending_approvals }}</p></div>
-  <div class="rounded-3xl border border-slate-200 bg-white p-5"><p class="text-sm text-slate-500">Overdue Items</p><p class="mt-2 text-2xl font-semibold">{{ summary.overdue_items }}</p></div>
+
+<div class="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-6">
+  <div class="metric-tile is-soft"><p class="eyebrow text-slate-500">Receivables</p><p class="metric-value mt-3 text-2xl font-semibold">{{ summary.outstanding_receivables|currency }}</p></div>
+  <div class="metric-tile is-soft"><p class="eyebrow text-slate-500">Payables</p><p class="metric-value mt-3 text-2xl font-semibold">{{ summary.outstanding_payables|currency }}</p></div>
+  <div class="metric-tile is-soft"><p class="eyebrow text-slate-500">Pending Approvals</p><p class="metric-value mt-3 text-2xl font-semibold">{{ summary.pending_approvals }}</p></div>
+  <div class="metric-tile is-soft"><p class="eyebrow text-slate-500">Overdue Items</p><p class="metric-value mt-3 text-2xl font-semibold metric-accent-amber">{{ summary.overdue_items }}</p></div>
+  <div class="metric-tile is-soft"><p class="eyebrow text-slate-500">Budget Alerts</p><p class="metric-value mt-3 text-2xl font-semibold">{{ summary.budget_alerts }}</p></div>
+  <div class="metric-tile is-soft"><p class="eyebrow text-slate-500">Unreconciled</p><p class="metric-value mt-3 text-2xl font-semibold">{{ summary.unreconciled_transactions }}</p></div>
 </div>
-<div class="mt-5 grid gap-5 xl:grid-cols-[1.4fr_1fr]">
-  <div class="rounded-3xl bg-white p-6 shadow-sm">
-    <div class="flex items-center justify-between">
-      <h3 class="text-lg font-semibold">Recent Transactions</h3>
-      <a class="text-sm text-slate-500" href="{{ url_for('transactions.transactions_list') }}">View all</a>
+
+<div class="mt-5 grid gap-5 xl:grid-cols-[1.35fr_0.95fr]">
+  <div class="space-y-5">
+    <div class="glass-card rounded-[2rem] p-6">
+      <div class="stack-header">
+        <div class="stack-title">
+          <p class="section-kicker">Budget Health</p>
+          <h3 class="mt-2 text-2xl font-semibold">Budget vs Actuals</h3>
+        </div>
+        <a class="action-pill border border-slate-300 bg-white text-sm text-slate-600" href="{{ url_for('settings.budgets') }}">Manage budgets</a>
+      </div>
+      <div class="mt-5 data-stack">
+        {% for row in budget_rows %}
+          <div class="data-row px-5 py-5">
+            <div class="split-row">
+              <div class="split-row__primary">
+                <p class="font-medium text-break">{{ row.name }}</p>
+                <p class="mt-1 text-sm text-slate-500 text-break">{{ row.actual|currency }} used of {{ row.budget_amount|currency }}</p>
+              </div>
+              <div class="split-row__secondary text-left sm:text-right">
+                <p class="text-sm font-medium {{ 'text-rose-700' if row.over_budget else 'text-slate-700' }}">{{ row.remaining|currency }} left</p>
+                <p class="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">{{ row.utilization_percent }}% utilized</p>
+              </div>
+            </div>
+            <div class="dashboard-progress mt-4">
+              <span class="{% if row.over_budget %}is-danger{% elif row.alert_triggered %}is-warning{% else %}is-good{% endif %}" style="width: {{ [row.utilization_percent, 100]|min }}%"></span>
+            </div>
+          </div>
+        {% else %}
+          <p class="text-slate-500">No budgets configured yet.</p>
+        {% endfor %}
+      </div>
     </div>
-    <div class="mt-4 overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead class="text-left text-slate-500"><tr><th class="pb-3">Title</th><th class="pb-3">Type</th><th class="pb-3">Amount</th><th class="pb-3">Status</th></tr></thead>
-        <tbody class="divide-y divide-slate-100">
-          {% for item in recent_transactions %}
-            {% set status = item.status %}
-            <tr class="cursor-pointer hover:bg-slate-50" data-row-link="{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}" tabindex="0" role="link">
-              <td class="py-3">{{ item.title }}</td>
-              <td class="py-3 capitalize">{{ item.transaction_type }}</td>
-              <td class="py-3">{{ item.amount|currency }}</td>
-              <td class="py-3">{% include "partials/status_badge.html" %}</td>
-            </tr>
-          {% else %}
-            <tr><td class="py-6 text-slate-500" colspan="4">No transactions yet. Create your first record.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+
+    <div class="glass-card rounded-[2rem] p-6">
+      <div class="stack-header">
+        <div class="stack-title">
+          <p class="section-kicker">Activity</p>
+          <h3 class="mt-2 text-2xl font-semibold">Recent transactions</h3>
+        </div>
+        <a class="action-pill border border-slate-300 bg-white text-sm text-slate-600" href="{{ url_for('transactions.transactions_list') }}">View all</a>
+      </div>
+      <div class="mt-5 overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="text-left text-slate-500"><tr><th class="pb-3">Title</th><th class="pb-3">Type</th><th class="pb-3">Amount</th><th class="pb-3">Status</th></tr></thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for item in recent_transactions %}
+              {% set status = item.status %}
+              <tr class="cursor-pointer hover:bg-slate-50" data-row-link="{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}" tabindex="0" role="link">
+                <td class="py-4 text-break">{{ item.title }}</td>
+                <td class="py-4 capitalize">{{ item.transaction_type }}</td>
+                <td class="py-4">{{ item.amount|currency }}</td>
+                <td class="py-4">{% include "partials/status_badge.html" %}</td>
+              </tr>
+            {% else %}
+              <tr><td class="py-6 text-slate-500" colspan="4">No transactions yet. Create your first record.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
+
   <div class="space-y-5">
-    <div class="rounded-3xl bg-white p-6 shadow-sm">
-      <h3 class="text-lg font-semibold">Expenses by Category</h3>
+    <div class="hero-panel-dark p-6">
+      <div class="stack-title">
+        <p class="section-kicker text-emerald-300">Workflow</p>
+        <h3 class="mt-2 text-2xl font-semibold">Action Queue</h3>
+      </div>
+      <div class="mt-5 data-stack">
+        {% for item in action_queue %}
+          <a class="block rounded-[1.25rem] border border-white/10 bg-white/8 px-5 py-4 transition hover:bg-white/12" href="{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}">
+            <div class="split-row">
+              <p class="split-row__primary font-medium text-break text-white">{{ item.title }}</p>
+              <p class="split-row__secondary text-sm text-slate-300">{{ item.amount|currency }}</p>
+            </div>
+            <p class="mt-2 text-sm text-slate-300 text-break">{{ item.owner_name }} / {{ item.status }}</p>
+          </a>
+        {% else %}
+          <p class="text-slate-300">No approval or collection work is currently queued.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="glass-card rounded-[2rem] p-6">
+      <p class="section-kicker">Analysis</p>
+      <h3 class="mt-2 text-2xl font-semibold">Expense drill-down</h3>
+      <div class="mt-5 data-stack">
+        {% for row in drilldown_rows %}
+          <div class="data-row px-5 py-4">
+            <div class="split-row">
+              <div class="split-row__primary">
+                <p class="font-medium text-break">{{ row.label }}</p>
+                <p class="mt-1 text-sm text-slate-500">{{ row.transaction_count }} transaction{{ "" if row.transaction_count == 1 else "s" }}</p>
+              </div>
+              <p class="split-row__secondary text-sm font-medium">{{ row.total|currency }}</p>
+            </div>
+          </div>
+        {% else %}
+          <p class="text-slate-500">No expense activity in this range.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="glass-card rounded-[2rem] p-6">
+      <p class="section-kicker">Visuals</p>
+      <h3 class="mt-2 text-2xl font-semibold">Expenses by category</h3>
       <canvas id="expense-chart" class="mt-4 h-64"></canvas>
     </div>
-    <div class="rounded-3xl bg-white p-6 shadow-sm">
-      <h3 class="text-lg font-semibold">Cash Trend</h3>
+    <div class="glass-card rounded-[2rem] p-6">
+      <p class="section-kicker">Trend</p>
+      <h3 class="mt-2 text-2xl font-semibold">Cash trend</h3>
       <canvas id="trend-chart" class="mt-4 h-64"></canvas>
     </div>
   </div>
 </div>
-  <script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}">
   new Chart(document.getElementById("expense-chart"), {
     type: "doughnut",
-    data: { labels: {{ expense_chart["labels"]|tojson }}, datasets: [{ data: {{ expense_chart["values"]|tojson }}, backgroundColor: ["#0f766e","#15803d","#b45309","#dc2626","#1d4ed8"] }] },
+    data: { labels: {{ expense_chart["labels"]|tojson }}, datasets: [{ data: {{ expense_chart["values"]|tojson }}, backgroundColor: ["#0f8b8d","#1b9c6d","#e59f2f","#d95b6a","#204977"] }] },
     options: { plugins: { legend: { position: "bottom" } } }
   });
   new Chart(document.getElementById("trend-chart"), {
@@ -57,8 +156,8 @@
     data: {
       labels: {{ trend_chart.labels|tojson }},
       datasets: [
-        { label: "Revenue", data: {{ trend_chart.revenue|tojson }}, backgroundColor: "#15803d" },
-        { label: "Expenses", data: {{ trend_chart.expense|tojson }}, backgroundColor: "#dc2626" }
+        { label: "Revenue", data: {{ trend_chart.revenue|tojson }}, backgroundColor: "#1b9c6d" },
+        { label: "Expenses", data: {{ trend_chart.expense|tojson }}, backgroundColor: "#d95b6a" }
       ]
     },
     options: { responsive: true, plugins: { legend: { position: "bottom" } } }

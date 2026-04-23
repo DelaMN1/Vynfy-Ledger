@@ -1,24 +1,59 @@
 {% extends "base.html" %}
+{% import "partials/filter_toolbar.html" as filter_toolbar %}
 {% block page_title %}Reports{% endblock %}
 {% block content %}
-  <div class="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-    <div class="rounded-3xl bg-white p-6 shadow-sm">
-      <form class="space-y-5" method="get">
-        <div>
-          <label class="mb-2 block text-sm font-medium">Report</label>
-          <select class="w-full rounded-2xl border-slate-200 px-4 py-3" name="report">
-            {% for value, label in report_options %}
-              <option value="{{ value }}" {% if report_key == value %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>{{ filter_form.q.label(class="mb-2 block text-sm font-medium") }}{{ filter_form.q(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-        <div>{{ filter_form.status.label(class="mb-2 block text-sm font-medium") }}{{ filter_form.status(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-        <button class="rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white" type="submit">Run report</button>
-        <a class="inline-flex rounded-full border border-slate-300 px-4 py-3 text-sm" href="{{ url_for('reports.export_csv', report=report_key, q=request.args.get('q'), status=request.args.get('status')) }}">Export CSV</a>
+  {% set has_advanced_filters = request.args.get('category_id') or request.args.get('account_id') or request.args.get('owner_id') %}
+  {% set report_select %}
+    <select class="px-4 py-3 text-sm" name="report">
+      {% for value, label in report_options %}
+        <option value="{{ value }}" {% if report_key == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  {% endset %}
+  <div class="glass-card rounded-[2rem] p-6">
+    <div class="border-b border-slate-200/80 pb-6">
+      <form class="filter-toolbar-shell" method="get">
+        {% call filter_toolbar.row("filter-toolbar--reports") %}
+          {{ filter_toolbar.field(
+            '<label class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Report</label>'|safe,
+            report_select|safe
+          ) }}
+          {{ filter_toolbar.field(
+            filter_form.q.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
+            filter_form.q(class="px-4 py-3 text-sm", placeholder="Search label, vendor, or source"),
+            "filter-toolbar__field--search"
+          ) }}
+          {{ filter_toolbar.field(
+            filter_form.status.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
+            filter_form.status(class="px-4 py-3 text-sm"),
+            "filter-toolbar__field--wide"
+          ) }}
+          {% call filter_toolbar.actions("filter-toolbar__actions--reports-inline") %}
+            <button class="action-pill bg-slate-900 text-sm font-medium text-white" type="submit">Apply</button>
+            <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('reports.index', report=report_key) }}">Reset</a>
+          {% endcall %}
+          {% call filter_toolbar.actions("filter-toolbar__actions--reports-export") %}
+            <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('reports.export_csv', report=report_key, q=request.args.get('q'), status=request.args.get('status'), category_id=request.args.get('category_id'), account_id=request.args.get('account_id'), owner_id=request.args.get('owner_id')) }}">Export CSV</a>
+          {% endcall %}
+        {% endcall %}
+
+        {% call filter_toolbar.advanced("More Filters", "Category, account, and owner filters", has_advanced_filters) %}
+          {{ filter_toolbar.field(
+            filter_form.category_id.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
+            filter_form.category_id(class="px-4 py-3 text-sm")
+          ) }}
+          {{ filter_toolbar.field(
+            filter_form.account_id.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
+            filter_form.account_id(class="px-4 py-3 text-sm")
+          ) }}
+          {{ filter_toolbar.field(
+            filter_form.owner_id.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
+            filter_form.owner_id(class="px-4 py-3 text-sm")
+          ) }}
+        {% endcall %}
       </form>
     </div>
-    <div class="rounded-3xl bg-white p-6 shadow-sm">
+    <div class="pt-6">
       <div class="flex items-center justify-between">
         <div><p class="text-sm text-slate-500">Current total</p><h3 class="mt-2 text-3xl font-semibold">{{ report.metric_total|currency }}</h3></div>
       </div>

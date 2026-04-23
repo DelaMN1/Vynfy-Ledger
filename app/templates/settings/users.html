@@ -2,32 +2,51 @@
 {% from "partials/password_field.html" import render_password_field %}
 {% block page_title %}Settings - Users{% endblock %}
 {% block content %}
-  <div class="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-    <form class="rounded-3xl bg-white p-6 shadow-sm" method="post">
-      {{ form.hidden_tag() }}
-      <h3 class="text-xl font-semibold">Create User</h3>
-      <div class="mt-5 grid gap-4 md:grid-cols-2">
-        <div class="md:col-span-2">{{ form.full_name.label(class="mb-2 block text-sm font-medium") }}{{ form.full_name(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-        <div class="md:col-span-2">{{ form.email.label(class="mb-2 block text-sm font-medium") }}{{ form.email(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-        <div class="md:col-span-2">{{ render_password_field(form.password, "admin-user-password", autocomplete="new-password") }}</div>
-        <div>{{ form.role.label(class="mb-2 block text-sm font-medium") }}{{ form.role(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-        <div class="flex items-center gap-3 pt-10">{{ form.can_create_revenue() }}{{ form.can_create_revenue.label(class="text-sm font-medium") }}</div>
-        <div class="flex items-center gap-3">{{ form.email_verified() }}{{ form.email_verified.label(class="text-sm font-medium") }}</div>
-        <div class="flex items-center gap-3">{{ form.is_active() }}{{ form.is_active.label(class="text-sm font-medium") }}</div>
-      </div>
-      <button class="mt-6 rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white" type="submit">Create user</button>
-    </form>
-    <div class="rounded-3xl bg-white p-6 shadow-sm">
-      <h3 class="text-xl font-semibold">Users</h3>
-      <div class="mt-6 space-y-3">
-        {% for item in users %}
-          <div class="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4">
-            <div><p class="font-medium">{{ item.full_name }}</p><p class="text-sm text-slate-500">{{ item.email }}</p></div>
-            <div class="text-right"><p class="text-sm font-medium">{{ item.role|title }}</p><p class="text-xs text-slate-500">{{ "Verified" if item.email_verified else "Pending verification" }}</p></div>
+  <div class="space-y-5">
+    {% include "settings/_nav.html" %}
+    <div class="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+      <form class="glass-card field-shell rounded-[2rem] p-7" method="post">
+        {{ form.hidden_tag() }}
+        <p class="section-kicker">Access</p>
+        <h3 class="mt-2 text-2xl font-semibold">Create user</h3>
+        <p class="mt-2 text-sm leading-6 text-slate-600">Add finance operators with clean defaults and explicit permissions for revenue creation and account access.</p>
+        <div class="mt-6 grid gap-4 md:grid-cols-2">
+          <div class="md:col-span-2">{{ form.full_name.label(class="mb-2 block text-sm font-medium") }}{{ form.full_name(class="w-full px-4 py-3") }}</div>
+          <div class="md:col-span-2">{{ form.email.label(class="mb-2 block text-sm font-medium") }}{{ form.email(class="w-full px-4 py-3") }}</div>
+          <div class="md:col-span-2">{{ render_password_field(form.password, "admin-user-password", autocomplete="new-password") }}</div>
+          <div>{{ form.role.label(class="mb-2 block text-sm font-medium") }}{{ form.role(class="w-full px-4 py-3") }}</div>
+          <label class="stacked-check md:col-span-2"><span>{{ form.can_create_revenue() }}</span><span class="text-sm font-medium">Can create revenue records</span></label>
+          <label class="stacked-check"><span>{{ form.email_verified() }}</span><span class="text-sm font-medium">Email verified</span></label>
+          <label class="stacked-check"><span>{{ form.is_active() }}</span><span class="text-sm font-medium">Active account</span></label>
+        </div>
+        <button class="action-pill mt-6 bg-slate-900 text-sm font-medium text-white" type="submit">Create user</button>
+      </form>
+      <div class="glass-card rounded-[2rem] p-7">
+        <div class="stack-header">
+          <div class="stack-title">
+            <p class="section-kicker">Team</p>
+            <h3 class="mt-2 text-2xl font-semibold">Ledger operators</h3>
           </div>
-        {% else %}
-          <p class="text-slate-500">No users yet.</p>
-        {% endfor %}
+          <div class="count-pill bg-slate-100 text-sm text-slate-600">{{ users|length }} users</div>
+        </div>
+        <div class="mt-6 data-stack">
+          {% for item in users %}
+            <div class="data-row px-5 py-4">
+              <div class="split-row">
+                <div class="split-row__primary">
+                  <p class="font-medium text-break">{{ item.full_name }}</p>
+                  <p class="mt-1 text-sm text-slate-500 text-break">{{ item.email }}</p>
+                </div>
+                <div class="split-row__secondary text-left sm:text-right">
+                  <p class="text-sm font-medium">{{ item.role|title }}</p>
+                  <p class="mt-1 text-xs uppercase tracking-[0.14em] text-slate-400">{{ "Verified" if item.email_verified else "Pending" }}</p>
+                </div>
+              </div>
+            </div>
+          {% else %}
+            <p class="text-slate-500">No users yet.</p>
+          {% endfor %}
+        </div>
       </div>
     </div>
   </div>

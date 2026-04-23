@@ -1,15 +1,26 @@
 {% extends "base.html" %}
 {% block page_title %}Dashboard{% endblock %}
 {% block content %}
-  <form class="mb-6 flex gap-3" hx-get="{{ url_for('dashboard.overview') }}" hx-target="#dashboard-content" hx-push-url="true">
-    <select class="rounded-full border-slate-300 bg-white px-4 py-2 text-sm" name="range">
-      <option value="month" {% if range_key == 'month' %}selected{% endif %}>This month</option>
-      <option value="quarter" {% if range_key == 'quarter' %}selected{% endif %}>Last 90 days</option>
-      <option value="year" {% if range_key == 'year' %}selected{% endif %}>This year</option>
-    </select>
-    <button class="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white" type="submit">Refresh</button>
-  </form>
-  <div id="dashboard-content">
-    {% include "dashboard/_dashboard_content.html" %}
+  <div class="space-y-5">
+    <div class="hero-panel p-6">
+      <div class="stack-header">
+        <div class="stack-title max-w-2xl">
+          <p class="section-kicker">Command View</p>
+          <h3 class="mt-2 text-3xl font-semibold text-slate-900">Run finance from one surface</h3>
+          <p class="mt-3 text-sm leading-6 text-slate-600">Track spend pressure, approval work, receivables, and reconciliation drift without jumping between sections.</p>
+        </div>
+        <form class="flex flex-wrap items-center gap-3" hx-get="{{ url_for('dashboard.overview') }}" hx-target="#dashboard-content" hx-push-url="true">
+          <select class="toolbar-pill border-slate-300 bg-white text-sm shadow-sm" name="range">
+            <option value="month" {% if range_key == 'month' %}selected{% endif %}>This month</option>
+            <option value="quarter" {% if range_key == 'quarter' %}selected{% endif %}>Last 90 days</option>
+            <option value="year" {% if range_key == 'year' %}selected{% endif %}>This year</option>
+          </select>
+          <button class="toolbar-pill bg-slate-900 text-sm font-medium text-white" type="submit">Refresh view</button>
+        </form>
+      </div>
+    </div>
+    <div id="dashboard-content">
+      {% include "dashboard/_dashboard_content.html" %}
+    </div>
   </div>
 {% endblock %}

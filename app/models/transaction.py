@@ -31,6 +31,12 @@ class Transaction(TimestampMixin, db.Model):
     approved_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     reference_number = db.Column(db.String(100))
     note = db.Column(db.Text)
+    spend_policy_id = db.Column(db.Integer, db.ForeignKey("spend_policies.id"), index=True)
+    budget_id = db.Column(db.Integer, db.ForeignKey("budgets.id"), index=True)
+    accounting_mapping_id = db.Column(db.Integer, db.ForeignKey("accounting_mappings.id"), index=True)
+    accounting_gl_code = db.Column(db.String(50))
+    accounting_cost_center = db.Column(db.String(50))
+    accounting_project_code = db.Column(db.String(50))
     attachment_count = db.Column(db.Integer, nullable=False, default=0)
     is_reconciled = db.Column(db.Boolean, nullable=False, default=False)
     reconciled_at = db.Column(db.DateTime(timezone=True))
@@ -39,6 +45,16 @@ class Transaction(TimestampMixin, db.Model):
     category = db.relationship("Category")
     account = db.relationship("Account")
     payment_method = db.relationship("PaymentMethod")
+    spend_policy = db.relationship("SpendPolicy")
+    budget = db.relationship("Budget")
+    accounting_mapping = db.relationship("AccountingMapping")
     submitted_by = db.relationship("User", foreign_keys=[submitted_by_id], back_populates="submitted_transactions")
     approved_by = db.relationship("User", foreign_keys=[approved_by_id], back_populates="approved_transactions")
     attachments = db.relationship("Attachment", back_populates="transaction", cascade="all, delete-orphan")
+    comments = db.relationship("TransactionComment", back_populates="transaction", cascade="all, delete-orphan", order_by="TransactionComment.created_at.asc()")
+    status_history = db.relationship(
+        "TransactionStatusHistory",
+        back_populates="transaction",
+        cascade="all, delete-orphan",
+        order_by="TransactionStatusHistory.created_at.desc()",
+    )

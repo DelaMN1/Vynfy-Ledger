@@ -1,0 +1,21 @@
+<div class="hero-panel p-5">
+  <div class="section-intro">
+    <p class="section-kicker">Control Center</p>
+    <div class="stack-header">
+      <div class="stack-title max-w-2xl">
+        <h3 class="text-2xl font-semibold text-slate-900">Finance configuration</h3>
+        <p class="mt-2 text-sm leading-6 text-slate-600">Shape the ledger with consistent categories, budgets, spend rules, mapping logic, and user access from one place.</p>
+      </div>
+      <p class="count-pill bg-white/70 text-sm text-slate-500">Admin-only controls</p>
+    </div>
+  </div>
+  <div class="settings-tab-group mt-5">
+    <a class="settings-tab {{ 'is-active' if request.endpoint == 'settings.categories' else 'is-idle' }}" href="{{ url_for('settings.categories') }}">Categories</a>
+    <a class="settings-tab {{ 'is-active' if request.endpoint == 'settings.accounts' else 'is-idle' }}" href="{{ url_for('settings.accounts') }}">Accounts</a>
+    <a class="settings-tab {{ 'is-active' if request.endpoint == 'settings.payment_methods' else 'is-idle' }}" href="{{ url_for('settings.payment_methods') }}">Payment Methods</a>
+    <a class="settings-tab {{ 'is-active' if request.endpoint == 'settings.budgets' else 'is-idle' }}" href="{{ url_for('settings.budgets') }}">Budgets</a>
+    <a class="settings-tab {{ 'is-active' if request.endpoint == 'settings.policies' else 'is-idle' }}" href="{{ url_for('settings.policies') }}">Policies</a>
+    <a class="settings-tab {{ 'is-active' if request.endpoint == 'settings.accounting_mappings' else 'is-idle' }}" href="{{ url_for('settings.accounting_mappings') }}">Accounting</a>
+    <a class="settings-tab {{ 'is-active' if request.endpoint == 'settings.users' else 'is-idle' }}" href="{{ url_for('settings.users') }}">Users</a>
+  </div>
+</div>

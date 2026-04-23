@@ -52,6 +52,11 @@ class DeleteDraftForm(FlaskForm):
     submit = SubmitField("Delete draft")
 
 
+class TransactionCommentForm(FlaskForm):
+    body = TextAreaField("Comment", validators=[DataRequired(), Length(max=1000)])
+    submit = SubmitField("Post comment")
+
+
 class TransactionFilterForm(FlaskForm):
     q = StringField("Search", validators=[Optional(), Length(max=120)])
     status = SelectField("Status", validators=[Optional()], choices=[("", "All statuses")])

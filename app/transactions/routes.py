@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from datetime import date
+
 from flask import Blueprint, Response, flash, g, redirect, render_template, request, url_for
 
 from app.extensions import db
-from app.transactions.forms import DeleteDraftForm, ExpenseActionForm, ExpenseForm, RevenueForm, SettlementForm, TransactionFilterForm
+from app.transactions.forms import DeleteDraftForm, ExpenseActionForm, ExpenseForm, RevenueForm, SettlementForm, TransactionCommentForm, TransactionFilterForm
 from app.transactions.services import (
+    add_transaction_comment,
     approve_expense,
     assign_filter_choices,
     assign_form_choices,
@@ -18,6 +21,7 @@ from app.transactions.services import (
     return_expense_for_edit,
     soft_delete_draft,
     submit_expense,
+    transaction_exception_messages,
     update_transaction_from_form,
 )
 from app.utils.decorators import admin_required, login_required
@@ -35,6 +39,8 @@ def _filters() -> TransactionFilters:
         category_id=request.args.get("category_id", type=int) or None,
         account_id=request.args.get("account_id", type=int) or None,
         owner_id=request.args.get("owner_id", type=int) or None,
+        start_date=request.args.get("start_date", type=lambda value: date.fromisoformat(value) if value else None),
+        end_date=request.args.get("end_date", type=lambda value: date.fromisoformat(value) if value else None),
     )
 
 
@@ -76,7 +82,15 @@ def revenue_new():
 @login_required
 def revenue_detail(transaction_id: int):
     transaction = get_transaction_or_404(transaction_id, user=g.current_user, transaction_type=TransactionType.REVENUE.value)
-    return render_template("transactions/detail.html", transaction=transaction, action_form=None, settlement_form=SettlementForm(), delete_form=DeleteDraftForm())
+    return render_template(
+        "transactions/detail.html",
+        transaction=transaction,
+        action_form=None,
+        settlement_form=SettlementForm(),
+        delete_form=DeleteDraftForm(),
+        comment_form=TransactionCommentForm(),
+        exceptions=transaction_exception_messages(transaction),
+    )
 
 
 @transactions_bp.route("/revenue/<int:transaction_id>/edit", methods=["GET", "POST"])
@@ -140,7 +154,15 @@ def expense_new():
 @login_required
 def expense_detail(transaction_id: int):
     transaction = get_transaction_or_404(transaction_id, user=g.current_user, transaction_type=TransactionType.EXPENSE.value)
-    return render_template("transactions/detail.html", transaction=transaction, action_form=ExpenseActionForm(), settlement_form=SettlementForm(), delete_form=DeleteDraftForm())
+    return render_template(
+        "transactions/detail.html",
+        transaction=transaction,
+        action_form=ExpenseActionForm(),
+        settlement_form=SettlementForm(),
+        delete_form=DeleteDraftForm(),
+        comment_form=TransactionCommentForm(),
+        exceptions=transaction_exception_messages(transaction),
+    )
 
 
 @transactions_bp.route("/expenses/<int:transaction_id>/edit", methods=["GET", "POST"])
@@ -250,6 +272,22 @@ def transaction_detail(transaction_id: int):
     if transaction.transaction_type == TransactionType.REVENUE.value:
         return redirect(url_for("transactions.revenue_detail", transaction_id=transaction.id))
     return redirect(url_for("transactions.expense_detail", transaction_id=transaction.id))
+
+
+@transactions_bp.post("/transactions/<int:transaction_id>/comments")
+@login_required
+def transaction_comment(transaction_id: int):
+    transaction = get_transaction_or_404(transaction_id, user=g.current_user)
+    form = TransactionCommentForm()
+    if form.validate_on_submit():
+        try:
+            add_transaction_comment(transaction, g.current_user, form.body.data)
+            db.session.commit()
+            flash("Comment posted.", "success")
+        except ValueError as exc:
+            db.session.rollback()
+            flash(str(exc), "error")
+    return redirect(url_for("transactions.transaction_detail", transaction_id=transaction.id))
 
 
 @transactions_bp.post("/transactions/<int:transaction_id>/delete")

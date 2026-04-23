@@ -9,6 +9,7 @@ from app.reconciliation.services import (
     finalize_session,
     get_session_or_404,
     reconciliation_accounts,
+    reconciliation_summary,
     reconciliation_transactions,
 )
 from app.utils.decorators import admin_required
@@ -31,7 +32,13 @@ def index():
             transactions = reconciliation_transactions(active_session)
         except ValueError as exc:
             flash(str(exc), "error")
-    return render_template("reconciliation/index.html", form=form, active_session=active_session, transactions=transactions)
+    return render_template(
+        "reconciliation/index.html",
+        form=form,
+        active_session=active_session,
+        transactions=transactions,
+        summary=reconciliation_summary(active_session) if active_session else None,
+    )
 
 
 @reconciliation_bp.post("/reconciliation/start")
@@ -48,7 +55,7 @@ def start():
         except ValueError as exc:
             db.session.rollback()
             flash(str(exc), "error")
-    return render_template("reconciliation/index.html", form=form, active_session=None, transactions=[])
+    return render_template("reconciliation/index.html", form=form, active_session=None, transactions=[], summary=None)
 
 
 @reconciliation_bp.post("/reconciliation/<int:session_id>/finalize")

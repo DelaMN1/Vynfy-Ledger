@@ -1,0 +1,39 @@
+{% macro row(classes="") -%}
+  <div class="filter-toolbar{% if classes %} {{ classes }}{% endif %}">
+    {{ caller() }}
+  </div>
+{%- endmacro %}
+
+{% macro field(label, control, classes="") -%}
+  <div class="filter-toolbar__field{% if classes %} {{ classes }}{% endif %}">
+    {{ label }}
+    {{ control }}
+  </div>
+{%- endmacro %}
+
+{% macro actions(classes="") -%}
+  <div class="filter-toolbar__actions{% if classes %} {{ classes }}{% endif %}">
+    {{ caller() }}
+  </div>
+{%- endmacro %}
+
+{% macro advanced(title, description="", is_open=False, classes="") -%}
+  <details class="filter-toolbar-advanced{% if classes %} {{ classes }}{% endif %}" {% if is_open %}open{% endif %}>
+    <summary>
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{{ title }}</p>
+        {% if description %}
+          <p class="mt-1 text-sm text-slate-600">{{ description }}</p>
+        {% endif %}
+      </div>
+      <span class="filter-toolbar-advanced__chevron" aria-hidden="true">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </span>
+    </summary>
+    <div class="filter-toolbar-advanced__content">
+      {{ caller() }}
+    </div>
+  </details>
+{%- endmacro %}

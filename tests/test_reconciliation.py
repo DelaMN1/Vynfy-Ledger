@@ -67,6 +67,12 @@ def test_reconciliation_dashboard_requires_admin(client, sample_data, login):
     assert response.status_code == 403
 
 
+def test_reconciliation_dashboard_renders_for_admin(client, sample_data, login):
+    login("admin@example.com", "AdminPassword123")
+    response = client.get("/reconciliation", follow_redirects=False)
+    assert response.status_code == 200
+
+
 def test_duplicate_reconciliation_finalize_is_idempotent(client, app, sample_data, login):
     with app.app_context():
         session = ReconciliationSession(

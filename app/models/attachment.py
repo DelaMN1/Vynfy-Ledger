@@ -14,6 +14,9 @@ class Attachment(TimestampMixin, db.Model):
     file_path = db.Column(db.String(255), nullable=False)
     mime_type = db.Column(db.String(120), nullable=False)
     file_size = db.Column(db.Integer, nullable=False)
+    sha256_hash = db.Column(db.String(64), index=True)
+    duplicate_of_attachment_id = db.Column(db.Integer, db.ForeignKey("attachments.id"))
     uploaded_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
 
     transaction = db.relationship("Transaction", back_populates="attachments")
+    duplicate_of = db.relationship("Attachment", remote_side=[id])

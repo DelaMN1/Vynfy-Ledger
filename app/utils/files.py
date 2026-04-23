@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import mimetypes
 from pathlib import Path
 from uuid import uuid4
@@ -30,12 +31,15 @@ def validate_upload(file: FileStorage) -> list[str]:
     return errors
 
 
-def store_upload(file: FileStorage) -> tuple[str, str]:
+def store_upload(file: FileStorage) -> tuple[str, str, str]:
     upload_dir = Path(current_app.config["UPLOAD_FOLDER"])
     upload_dir.mkdir(parents=True, exist_ok=True)
     extension = Path(file.filename or "").suffix.lower()
     stored_name = f"{uuid4().hex}{extension}"
     safe_original = secure_filename(file.filename or stored_name)
     file_path = upload_dir / stored_name
+    file.stream.seek(0)
+    sha256_hash = hashlib.sha256(file.stream.read()).hexdigest()
+    file.stream.seek(0)
     file.save(file_path)
-    return safe_original, stored_name
+    return safe_original, stored_name, sha256_hash

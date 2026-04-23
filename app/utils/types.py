@@ -63,6 +63,8 @@ class DashboardSummary(TypedDict):
     outstanding_payables: Decimal
     pending_approvals: int
     overdue_items: int
+    budget_alerts: int
+    unreconciled_transactions: int
 
 
 class DashboardChart(TypedDict):
@@ -81,12 +83,43 @@ class TrendChart(TypedDict):
     expense: list[float]
 
 
+class BudgetHealthRow(TypedDict):
+    name: str
+    actual: Decimal
+    budget_amount: Decimal
+    remaining: Decimal
+    utilization_percent: int
+    alert_triggered: bool
+    over_budget: bool
+    category_id: int | None
+    account_id: int | None
+    owner_id: int | None
+
+
+class DashboardQueueItem(TypedDict):
+    id: int
+    title: str
+    status: str
+    amount: Decimal
+    owner_name: str
+    detail_url: str
+
+
+class DashboardDrilldownRow(TypedDict):
+    label: str
+    total: Decimal
+    transaction_count: int
+
+
 class DashboardContext(TypedDict):
     range_key: str
     summary: DashboardSummary
     recent_transactions: list[Transaction]
     expense_chart: DashboardChart
     trend_chart: TrendChart
+    budget_rows: list[BudgetHealthRow]
+    action_queue: list[DashboardQueueItem]
+    drilldown_rows: list[DashboardDrilldownRow]
 
 
 class VerificationTokenPayload(TypedDict):

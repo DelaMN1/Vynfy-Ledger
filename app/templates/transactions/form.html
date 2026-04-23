@@ -1,32 +1,32 @@
 {% extends "base.html" %}
 {% block page_title %}{{ page_title }}{% endblock %}
 {% block content %}
-  <form class="rounded-3xl bg-white p-8 shadow-sm" method="post" enctype="multipart/form-data">
+  <form class="glass-card field-shell rounded-[2rem] p-8" method="post" enctype="multipart/form-data">
     {{ form.hidden_tag() }}
     <div class="grid gap-5 md:grid-cols-2">
-      <div>{{ form.title.label(class="mb-2 block text-sm font-medium") }}{{ form.title(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-      <div>{{ form.counterparty.label(class="mb-2 block text-sm font-medium") }}{{ form.counterparty(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-      <div class="md:col-span-2">{{ form.description.label(class="mb-2 block text-sm font-medium") }}{{ form.description(class="w-full rounded-2xl border-slate-200 px-4 py-3", rows="4") }}</div>
-      <div>{{ form.category_id.label(class="mb-2 block text-sm font-medium") }}{{ form.category_id(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-      <div>{{ form.account_id.label(class="mb-2 block text-sm font-medium") }}{{ form.account_id(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-      <div>{{ form.payment_method_id.label(class="mb-2 block text-sm font-medium") }}{{ form.payment_method_id(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-      <div>{{ form.transaction_date.label(class="mb-2 block text-sm font-medium") }}{{ form.transaction_date(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-      <div>{{ form.due_date.label(class="mb-2 block text-sm font-medium") }}{{ form.due_date(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-      <div>{{ form.settled_date.label(class="mb-2 block text-sm font-medium") }}{{ form.settled_date(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-      <div>{{ form.reference_number.label(class="mb-2 block text-sm font-medium") }}{{ form.reference_number(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+      <div>{{ form.title.label(class="mb-2 block text-sm font-medium") }}{{ form.title(class="w-full px-4 py-3") }}</div>
+      <div>{{ form.counterparty.label(class="mb-2 block text-sm font-medium") }}{{ form.counterparty(class="w-full px-4 py-3") }}</div>
+      <div class="md:col-span-2">{{ form.description.label(class="mb-2 block text-sm font-medium") }}{{ form.description(class="w-full px-4 py-3", rows="4") }}</div>
+      <div>{{ form.category_id.label(class="mb-2 block text-sm font-medium") }}{{ form.category_id(class="w-full px-4 py-3") }}</div>
+      <div>{{ form.account_id.label(class="mb-2 block text-sm font-medium") }}{{ form.account_id(class="w-full px-4 py-3") }}</div>
+      <div>{{ form.payment_method_id.label(class="mb-2 block text-sm font-medium") }}{{ form.payment_method_id(class="w-full px-4 py-3") }}</div>
+      <div>{{ form.transaction_date.label(class="mb-2 block text-sm font-medium") }}{{ form.transaction_date(class="w-full px-4 py-3") }}</div>
+      <div>{{ form.due_date.label(class="mb-2 block text-sm font-medium") }}{{ form.due_date(class="w-full px-4 py-3") }}</div>
+      <div>{{ form.settled_date.label(class="mb-2 block text-sm font-medium") }}{{ form.settled_date(class="w-full px-4 py-3") }}</div>
+      <div>{{ form.reference_number.label(class="mb-2 block text-sm font-medium") }}{{ form.reference_number(class="w-full px-4 py-3") }}</div>
       {% if transaction_type == 'revenue' %}
-        <div>{{ form.expected_amount.label(class="mb-2 block text-sm font-medium") }}{{ form.expected_amount(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-        <div>{{ form.received_amount.label(class="mb-2 block text-sm font-medium") }}{{ form.received_amount(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+        <div>{{ form.expected_amount.label(class="mb-2 block text-sm font-medium") }}{{ form.expected_amount(class="w-full px-4 py-3") }}</div>
+        <div>{{ form.received_amount.label(class="mb-2 block text-sm font-medium") }}{{ form.received_amount(class="w-full px-4 py-3") }}</div>
       {% else %}
-        <div>{{ form.amount.label(class="mb-2 block text-sm font-medium") }}{{ form.amount(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-        <div class="flex items-center gap-3 pt-10">{{ form.reimbursable() }}{{ form.reimbursable.label(class="text-sm font-medium") }}</div>
+        <div>{{ form.amount.label(class="mb-2 block text-sm font-medium") }}{{ form.amount(class="w-full px-4 py-3") }}</div>
+        <label class="stacked-check mt-8"><span>{{ form.reimbursable() }}</span><span class="text-sm font-medium">Reimbursable expense</span></label>
       {% endif %}
-      <div class="md:col-span-2">{{ form.note.label(class="mb-2 block text-sm font-medium") }}{{ form.note(class="w-full rounded-2xl border-slate-200 px-4 py-3", rows="4") }}</div>
-      <div class="md:col-span-2">{{ form.attachments.label(class="mb-2 block text-sm font-medium") }}{{ form.attachments(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
+      <div class="md:col-span-2">{{ form.note.label(class="mb-2 block text-sm font-medium") }}{{ form.note(class="w-full px-4 py-3", rows="4") }}</div>
+      <div class="md:col-span-2">{{ form.attachments.label(class="mb-2 block text-sm font-medium") }}{{ form.attachments(class="w-full px-4 py-3") }}</div>
     </div>
-    <div class="mt-8 flex gap-3">
-      {{ form.save_draft(class="rounded-full border border-slate-300 px-5 py-3 text-sm font-medium") }}
-      {{ form.submit_record(class="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white") }}
+    <div class="mt-8 flex flex-wrap gap-3">
+      {{ form.save_draft(class="action-pill border border-slate-300 bg-white text-sm font-medium") }}
+      {{ form.submit_record(class="action-pill bg-slate-900 text-sm font-medium text-white") }}
     </div>
   </form>
 {% endblock %}

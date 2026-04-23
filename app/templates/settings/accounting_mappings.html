@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block page_title %}Settings - Accounting{% endblock %}
+{% block content %}
+  <div class="space-y-5">
+    {% include "settings/_nav.html" %}
+    <div class="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+      <form class="glass-card field-shell rounded-[2rem] p-7" method="post">
+        {{ form.hidden_tag() }}
+        <p class="section-kicker">ERP Readiness</p>
+        <h3 class="mt-2 text-2xl font-semibold">Create accounting mapping</h3>
+        <p class="mt-2 text-sm leading-6 text-slate-600">Map operational activity to GL, cost center, and project structure so exports are clean and month-end closes faster.</p>
+        <div class="mt-6 grid gap-4 md:grid-cols-2">
+          <div class="md:col-span-2">{{ form.name.label(class="mb-2 block text-sm font-medium") }}{{ form.name(class="w-full px-4 py-3") }}</div>
+          <div>{{ form.transaction_type.label(class="mb-2 block text-sm font-medium") }}{{ form.transaction_type(class="w-full px-4 py-3") }}</div>
+          <div>{{ form.payment_method_id.label(class="mb-2 block text-sm font-medium") }}{{ form.payment_method_id(class="w-full px-4 py-3") }}</div>
+          <div>{{ form.category_id.label(class="mb-2 block text-sm font-medium") }}{{ form.category_id(class="w-full px-4 py-3") }}</div>
+          <div>{{ form.account_id.label(class="mb-2 block text-sm font-medium") }}{{ form.account_id(class="w-full px-4 py-3") }}</div>
+          <div>{{ form.gl_code.label(class="mb-2 block text-sm font-medium") }}{{ form.gl_code(class="w-full px-4 py-3") }}</div>
+          <div>{{ form.cost_center.label(class="mb-2 block text-sm font-medium") }}{{ form.cost_center(class="w-full px-4 py-3") }}</div>
+          <div>{{ form.project_code.label(class="mb-2 block text-sm font-medium") }}{{ form.project_code(class="w-full px-4 py-3") }}</div>
+        </div>
+        <button class="action-pill mt-6 bg-slate-900 text-sm font-medium text-white" type="submit">Save mapping</button>
+      </form>
+      <div class="hero-panel p-7">
+        <div class="stack-header">
+          <div class="stack-title">
+            <p class="section-kicker">Mappings</p>
+            <h3 class="mt-2 text-2xl font-semibold">Chart-ready rules</h3>
+          </div>
+          <div class="count-pill bg-white/75 text-sm text-slate-600">{{ mappings|length }} mappings</div>
+        </div>
+        <div class="mt-6 data-stack">
+          {% for item in mappings %}
+            <div class="data-row px-5 py-4">
+              <div class="split-row">
+                <p class="split-row__primary font-medium text-break">{{ item.name }}</p>
+                <p class="split-row__secondary text-sm font-medium text-slate-700">{{ item.gl_code }}</p>
+              </div>
+              <p class="mt-2 text-sm text-slate-500 text-break">{{ item.cost_center or "No cost center" }}{% if item.project_code %} / {{ item.project_code }}{% endif %}</p>
+            </div>
+          {% else %}
+            <p class="text-slate-500">No mappings configured yet.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

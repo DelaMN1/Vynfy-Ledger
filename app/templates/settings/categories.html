@@ -1,29 +1,45 @@
 {% extends "base.html" %}
-{% block page_title %}Settings · Categories{% endblock %}
+{% block page_title %}Settings - Categories{% endblock %}
 {% block content %}
-  <div class="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
-    <form class="rounded-3xl bg-white p-6 shadow-sm" method="post">
-      {{ form.hidden_tag() }}
-      <h3 class="text-xl font-semibold">New Category</h3>
-      <div class="mt-5 space-y-4">
-        <div>{{ form.name.label(class="mb-2 block text-sm font-medium") }}{{ form.name(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-        <div>{{ form.type.label(class="mb-2 block text-sm font-medium") }}{{ form.type(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-        <div>{{ form.color.label(class="mb-2 block text-sm font-medium") }}{{ form.color(class="w-full rounded-2xl border-slate-200 px-4 py-3") }}</div>
-        <div>{{ form.description.label(class="mb-2 block text-sm font-medium") }}{{ form.description(class="w-full rounded-2xl border-slate-200 px-4 py-3", rows="4") }}</div>
-        <button class="rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white" type="submit">Save category</button>
-      </div>
-    </form>
-    <div class="rounded-3xl bg-white p-6 shadow-sm">
-      <h3 class="text-xl font-semibold">Existing Categories</h3>
-      <div class="mt-6 space-y-3">
-        {% for item in categories %}
-          <div class="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4">
-            <div><p class="font-medium">{{ item.name }}</p><p class="text-sm text-slate-500">{{ item.type|title }}</p></div>
-            <span class="h-4 w-4 rounded-full" style="background: {{ item.color }}"></span>
+  <div class="space-y-5">
+    {% include "settings/_nav.html" %}
+    <div class="grid gap-5 xl:grid-cols-[0.88fr_1.12fr]">
+      <form class="glass-card field-shell rounded-[2rem] p-7" method="post">
+        {{ form.hidden_tag() }}
+        <p class="section-kicker">Structure</p>
+        <h3 class="mt-2 text-2xl font-semibold">Create category</h3>
+        <p class="mt-2 text-sm leading-6 text-slate-600">Define the labels your teams will use across revenue, expenses, reporting, and automation rules.</p>
+        <div class="mt-6 space-y-4">
+          <div>{{ form.name.label(class="mb-2 block text-sm font-medium") }}{{ form.name(class="w-full px-4 py-3") }}</div>
+          <div>{{ form.type.label(class="mb-2 block text-sm font-medium") }}{{ form.type(class="w-full px-4 py-3") }}</div>
+          <div>{{ form.color.label(class="mb-2 block text-sm font-medium") }}{{ form.color(class="w-full px-4 py-3") }}</div>
+          <div>{{ form.description.label(class="mb-2 block text-sm font-medium") }}{{ form.description(class="w-full px-4 py-3", rows="4") }}</div>
+          <button class="action-pill bg-slate-900 text-sm font-medium text-white" type="submit">Save category</button>
+        </div>
+      </form>
+      <div class="hero-panel-dark p-7">
+        <div class="stack-header">
+          <div class="stack-title">
+            <p class="section-kicker text-emerald-300">Library</p>
+            <h3 class="mt-2 text-2xl font-semibold">Existing categories</h3>
           </div>
-        {% else %}
-          <p class="text-slate-500">No categories yet.</p>
-        {% endfor %}
+          <div class="count-pill bg-white/10 text-sm">{{ categories|length }} total</div>
+        </div>
+        <div class="mt-6 data-stack">
+          {% for item in categories %}
+            <div class="rounded-[1.25rem] border border-white/10 bg-white/8 px-5 py-4">
+              <div class="split-row">
+                <div class="split-row__primary">
+                  <p class="font-medium text-break text-white">{{ item.name }}</p>
+                  <p class="mt-1 text-sm text-slate-300">{{ item.type|title }}</p>
+                </div>
+                <span class="split-row__secondary h-4 w-4 rounded-full ring-4 ring-white/10" style="background: {{ item.color }}"></span>
+              </div>
+            </div>
+          {% else %}
+            <p class="text-slate-300">No categories yet.</p>
+          {% endfor %}
+        </div>
       </div>
     </div>
   </div>
