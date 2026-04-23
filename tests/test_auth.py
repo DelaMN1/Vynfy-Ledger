@@ -9,7 +9,6 @@ from sqlalchemy.exc import IntegrityError
 import app.auth.services as auth_services
 from app.extensions import db
 from app.models import User, UserSession
-from app.settings.services import seed_demo_data
 from app.utils.security import generate_token, hash_token
 from app.utils.time import utcnow
 from app.utils.types import PasswordResetTokenPayload, VerificationTokenPayload
@@ -281,15 +280,6 @@ def test_admin_post_redirect_does_not_preserve_post_next(client, app, sample_dat
     response = client.post("/settings/categories", data={"name": "Ops", "type": "Expense", "color": "#123456"}, follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/login")
-
-
-def test_demo_seed_is_disabled_when_not_explicitly_allowed(app):
-    app.config["ALLOW_DEMO_SEED"] = False
-    with app.app_context():
-        with pytest.raises(ValueError, match="Demo seed data is disabled"):
-            seed_demo_data()
-
-
 def test_production_password_reset_does_not_fallback_to_outbox(client, app):
     with app.app_context():
         user = User(full_name="Prod User", email="prod@example.com", email_verified=True)

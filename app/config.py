@@ -23,13 +23,17 @@ load_dotenv(BASE_DIR / ".env")
 DEFAULT_CONFIG_NAME = (os.getenv("APP_ENV") or os.getenv("FLASK_ENV") or "development").lower()
 
 
+def _normalize_database_url(value: str) -> str:
+    if value.startswith("postgres://"):
+        return f"postgresql://{value.removeprefix('postgres://')}"
+    return value
+
+
 def _database_uri() -> str:
-    env_value = os.getenv("DATABASE_URL")
+    env_value = (os.getenv("DATABASE_URL") or "").strip()
     if not env_value:
-        return f"sqlite:///{(INSTANCE_DIR / 'vynfy_ledger.db').as_posix()}"
-    if env_value == "sqlite:///vynfy_ledger.db":
-        return f"sqlite:///{(INSTANCE_DIR / 'vynfy_ledger.db').as_posix()}"
-    return env_value
+        raise RuntimeError("DATABASE_URL must be set outside testing.")
+    return _normalize_database_url(env_value)
 
 
 def _is_production() -> bool:
@@ -89,7 +93,6 @@ class Config:
     SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
     FORCE_HTTPS = os.getenv("FORCE_HTTPS", "true" if APP_ENV == "production" else "false").lower() == "true"
     TRUST_PROXY_COUNT = int(os.getenv("TRUST_PROXY_COUNT", "1" if APP_ENV == "production" else "0"))
-    ALLOW_DEMO_SEED = os.getenv("ALLOW_DEMO_SEED", "false").lower() == "true"
     RATELIMIT_HEADERS_ENABLED = True
     RATELIMIT_DEFAULT = "300 per hour"
     DEFAULT_PAGE_SIZE = 10
@@ -99,7 +102,6 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
-    ALLOW_DEMO_SEED = True
 
 
 class TestingConfig(Config):
@@ -110,14 +112,12 @@ class TestingConfig(Config):
     SESSION_COOKIE_SECURE = False
     FORCE_HTTPS = False
     TRUST_PROXY_COUNT = 0
-    ALLOW_DEMO_SEED = True
 
 
 class ProductionConfig(Config):
     DEBUG = False
     SESSION_COOKIE_SECURE = True
     FORCE_HTTPS = True
-    ALLOW_DEMO_SEED = False
 
 
 config_by_name = {

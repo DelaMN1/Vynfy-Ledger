@@ -9,7 +9,7 @@ from app.extensions import db
 from app.models.session import UserSession
 from app.models.user import User
 from app.utils.security import generate_session_token, get_request_ip, get_request_user_agent, hash_token
-from app.utils.time import utcnow
+from app.utils.time import ensure_utc, utcnow
 
 
 SESSION_COOKIE = "vynfy_session"
@@ -71,7 +71,7 @@ def load_user_from_session() -> None:
         .filter(UserSession.token_hash == hash_token(raw_token), UserSession.revoked_at.is_(None))
         .first()
     )
-    if not session or session.expires_at <= utcnow() or not session.user.is_active:
+    if not session or ensure_utc(session.expires_at) <= utcnow() or not session.user.is_active:
         g.clear_session_cookie = True
         return
 
@@ -79,12 +79,12 @@ def load_user_from_session() -> None:
     g.auth_session = session
 
     rotate_after = current_app.config["SESSION_ROTATE_AFTER"]
-    if utcnow() - session.issued_at >= rotate_after:
+    if utcnow() - ensure_utc(session.issued_at) >= rotate_after:
         new_token = create_session(
             session.user,
             ip_address=get_request_ip(),
             user_agent=get_request_user_agent(),
-            authenticated_at=session.second_factor_verified_at,
+            authenticated_at=ensure_utc(session.second_factor_verified_at),
             replaced_session=session,
         )
         g.session_cookie_to_set = new_token

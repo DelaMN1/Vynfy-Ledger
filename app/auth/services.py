@@ -25,7 +25,7 @@ from app.utils.security import (
     load_token,
     validate_password_policy,
 )
-from app.utils.time import utcnow
+from app.utils.time import ensure_utc, utcnow
 from app.utils.types import PasswordResetTokenPayload, VerificationTokenPayload
 
 
@@ -264,7 +264,7 @@ def authenticate_user(*, email: str, password: str) -> str:
         raise ServiceError("Invalid email or password.")
 
     now = utcnow()
-    if user.locked_until and user.locked_until > now:
+    if user.locked_until and ensure_utc(user.locked_until) > now:
         record_audit(user_id=user.id, entity_type="auth", entity_id=user.id, action="login_locked")
         raise ServiceError("Invalid email or password.")
 

@@ -132,15 +132,7 @@ The app loads `.env` automatically through `python-dotenv`.
 python -m flask --app run.py db upgrade
 ```
 
-### 5. Optionally seed demo data
-
-By default, development config enables demo seeding, but the command still respects `ALLOW_DEMO_SEED`.
-
-```powershell
-python -m flask --app run.py seed
-```
-
-### 6. Run the app
+### 5. Run the app
 
 ```powershell
 python run.py
@@ -161,7 +153,6 @@ python -m flask --app run.py routes
 python -m flask --app run.py shell
 python -m flask --app run.py db current
 python -m flask --app run.py db history
-python -m flask --app run.py seed
 ```
 
 ## Environment Variables
@@ -185,7 +176,7 @@ Production secrets must be unique and at least 32 characters long.
 - `APP_ENV`
   App environment selection: `development`, `testing`, or `production`
 - `DATABASE_URL`
-  SQLAlchemy database URL. If blank, local SQLite is used.
+  SQLAlchemy database URL. Set this for every environment outside tests.
 - `COMPANY_NAME`
   Display name used in the UI
 
@@ -210,8 +201,6 @@ Production secrets must be unique and at least 32 characters long.
 ### Feature flags
 
 - `REGISTRATION_ENABLED`
-- `ALLOW_DEMO_SEED`
-
 ### Email settings
 
 - `MAIL_FROM`
@@ -226,11 +215,16 @@ If email is not configured, development flows fall back to writing messages into
 
 ## Local Development Defaults
 
-If `DATABASE_URL` is empty, the app uses:
+Set `DATABASE_URL` to your local PostgreSQL database before running the app.
+
+Example:
 
 ```text
-sqlite:///instance/vynfy_ledger.db
+postgresql+psycopg://<user>:<password>@localhost:5432/vynfy_ledger
 ```
+
+SQLite is no longer used as the runtime database for development or production.
+If you still have `instance/vynfy_ledger.db`, treat it as a migration/archive source only.
 
 Other local filesystem behavior:
 
@@ -289,22 +283,6 @@ ModuleNotFoundError: No module named 'flask_limiter'
 ```
 
 you are almost certainly using the wrong Python environment. Use the repo venv explicitly.
-
-## Seed Data
-
-The app provides a seed command:
-
-```powershell
-python -m flask --app run.py seed
-```
-
-What it does:
-
-- creates demo users
-- creates example categories, accounts, and payment methods
-- creates a few sample transactions
-
-The command is intentionally blocked unless seeding is allowed by config.
 
 ## Authentication and Email Behavior
 
@@ -479,12 +457,6 @@ Do not commit real credentials, API keys, or production database URLs.
 
 ```powershell
 .\.venv\Scripts\python.exe -m flask --app run.py db upgrade
-```
-
-### Seed demo data
-
-```powershell
-.\.venv\Scripts\python.exe -m flask --app run.py seed
 ```
 
 ### Run tests

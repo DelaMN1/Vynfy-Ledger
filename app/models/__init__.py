@@ -6,7 +6,7 @@ from app.models.budget import Budget
 from app.models.category import Category
 from app.models.payment_method import PaymentMethod
 from app.models.reconciliation import ReconciliationSession
-from app.models.session import LoginChallenge, UserSession
+from app.models.session import UserSession
 from app.models.transaction import Transaction
 from app.models.transaction_comment import TransactionComment
 from app.models.transaction_status_history import TransactionStatusHistory
@@ -27,6 +27,5 @@ __all__ = [
     "TransactionComment",
     "TransactionStatusHistory",
     "User",
-    "LoginChallenge",
     "UserSession",
 ]

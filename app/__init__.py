@@ -52,7 +52,6 @@ def create_app(config_name: str | None = None) -> Flask:
     register_blueprints(app)
     register_errors(app)
     register_shell_context(app)
-    register_cli(app)
 
     @app.get("/")
     def index():
@@ -163,17 +162,3 @@ def register_shell_context(app: Flask) -> None:
     @app.shell_context_processor
     def shell_context():
         return {"db": db, "models": models}
-
-
-def register_cli(app: Flask) -> None:
-    from app.settings.services import seed_demo_data
-    from app.utils.exceptions import ServiceError
-
-    @app.cli.command("seed")
-    def seed_command():
-        try:
-            seed_demo_data()
-        except ServiceError as exc:
-            print(exc)
-            raise SystemExit(1) from exc
-        print("Seed data created.")

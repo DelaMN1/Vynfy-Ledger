@@ -7,7 +7,7 @@ from flask import abort, current_app, flash, g, redirect, request, url_for
 
 from app.extensions import db
 from app.utils.auth import revoke_session
-from app.utils.time import utcnow
+from app.utils.time import ensure_utc, utcnow
 
 
 def _auth_redirect():
@@ -35,7 +35,7 @@ def admin_required(view):
         if not getattr(g, "auth_session", None):
             abort(403)
         freshness_window = timedelta(minutes=current_app.config["ADMIN_STEP_UP_MINUTES"])
-        if g.auth_session.second_factor_verified_at + freshness_window < utcnow():
+        if ensure_utc(g.auth_session.second_factor_verified_at) + freshness_window < utcnow():
             revoke_session(g.auth_session)
             db.session.commit()
             g.clear_session_cookie = True

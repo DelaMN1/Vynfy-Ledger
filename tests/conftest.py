@@ -51,7 +51,6 @@ def app():
         MAX_LOGIN_LOCKOUT_MINUTES=60,
         PASSWORD_RESET_MINUTES=30,
         ADMIN_STEP_UP_MINUTES=15,
-        ALLOW_DEMO_SEED=True,
         RATELIMIT_ENABLED=False,
         TESTING=True,
     )

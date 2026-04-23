@@ -20,20 +20,3 @@ class UserSession(TimestampMixin, db.Model):
     ip_address = db.Column(db.String(64))
 
     user = db.relationship("User")
-
-
-class LoginChallenge(TimestampMixin, db.Model):
-    __tablename__ = "login_challenges"
-    # Legacy model retained for historical schema compatibility. The active app no longer uses challenge-based login.
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
-    code_hash = db.Column(db.String(64), nullable=False, index=True)
-    expires_at = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
-    consumed_at = db.Column(db.DateTime(timezone=True))
-    attempt_count = db.Column(db.Integer, nullable=False, default=0)
-    max_attempts = db.Column(db.Integer, nullable=False, default=5)
-    user_agent = db.Column(db.String(255))
-    ip_address = db.Column(db.String(64))
-
-    user = db.relationship("User")
