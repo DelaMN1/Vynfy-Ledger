@@ -121,7 +121,6 @@ def users():
                 password=form.password.data,
                 role=form.role.data,
                 can_create_revenue=form.can_create_revenue.data,
-                email_verified=form.email_verified.data,
                 is_active=form.is_active.data,
             ),
         )

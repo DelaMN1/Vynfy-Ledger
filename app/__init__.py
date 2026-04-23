@@ -23,10 +23,8 @@ PUBLIC_ENDPOINTS = {
     "index",
     "auth.login",
     "auth.register",
-    "auth.verify_email",
     "auth.forgot_password",
     "auth.reset_password",
-    "auth.resend_verification",
     "static",
 }
 
@@ -40,7 +38,6 @@ def create_app(config_name: str | None = None) -> Flask:
 
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
     Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
-    Path(app.config["OUTBOX_FOLDER"]).mkdir(parents=True, exist_ok=True)
 
     db.init_app(app)
     migrate.init_app(app, db)

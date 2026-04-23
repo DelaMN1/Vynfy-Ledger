@@ -43,6 +43,8 @@
           <a class="font-medium text-slate-600 transition hover:text-slate-900" href="{{ url_for('auth.forgot_password') }}">Forgot password?</a>
           {% if config.REGISTRATION_ENABLED %}
             <a class="font-medium text-slate-600 transition hover:text-slate-900" href="{{ url_for('auth.register') }}">Create account</a>
+          {% else %}
+            <span class="text-slate-500">Account access is managed internally.</span>
           {% endif %}
         </div>
       </section>

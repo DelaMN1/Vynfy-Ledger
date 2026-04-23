@@ -11,7 +11,9 @@ from app.transactions.services import (
     approve_expense,
     assign_filter_choices,
     assign_form_choices,
+    can_edit_transaction,
     create_transaction_from_form,
+    expense_action_state,
     export_transactions_csv,
     get_transaction_or_404,
     list_transactions,
@@ -90,6 +92,8 @@ def revenue_detail(transaction_id: int):
         delete_form=DeleteDraftForm(),
         comment_form=TransactionCommentForm(),
         exceptions=transaction_exception_messages(transaction),
+        can_edit=can_edit_transaction(transaction, g.current_user),
+        action_state=expense_action_state(transaction, g.current_user),
     )
 
 
@@ -162,6 +166,8 @@ def expense_detail(transaction_id: int):
         delete_form=DeleteDraftForm(),
         comment_form=TransactionCommentForm(),
         exceptions=transaction_exception_messages(transaction),
+        can_edit=can_edit_transaction(transaction, g.current_user),
+        action_state=expense_action_state(transaction, g.current_user),
     )
 
 

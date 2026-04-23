@@ -9,16 +9,16 @@
         {{ form.hidden_tag() }}
         <p class="section-kicker">Access</p>
         <h3 class="mt-2 text-2xl font-semibold">Create user</h3>
-        <p class="mt-2 text-sm leading-6 text-slate-600">Add finance operators with clean defaults and explicit permissions for revenue creation and account access.</p>
+        <p class="mt-2 text-sm leading-6 text-slate-600">Add finance operators with direct access, clean defaults, and explicit permissions for revenue creation and account access.</p>
         <div class="mt-6 grid gap-4 md:grid-cols-2">
           <div class="md:col-span-2">{{ form.full_name.label(class="mb-2 block text-sm font-medium") }}{{ form.full_name(class="w-full px-4 py-3") }}</div>
           <div class="md:col-span-2">{{ form.email.label(class="mb-2 block text-sm font-medium") }}{{ form.email(class="w-full px-4 py-3") }}</div>
           <div class="md:col-span-2">{{ render_password_field(form.password, "admin-user-password", autocomplete="new-password") }}</div>
           <div>{{ form.role.label(class="mb-2 block text-sm font-medium") }}{{ form.role(class="w-full px-4 py-3") }}</div>
           <label class="stacked-check md:col-span-2"><span>{{ form.can_create_revenue() }}</span><span class="text-sm font-medium">Can create revenue records</span></label>
-          <label class="stacked-check"><span>{{ form.email_verified() }}</span><span class="text-sm font-medium">Email verified</span></label>
           <label class="stacked-check"><span>{{ form.is_active() }}</span><span class="text-sm font-medium">Active account</span></label>
         </div>
+        <p class="mt-4 text-sm text-slate-500">Users created here can sign in immediately with the password you set.</p>
         <button class="action-pill mt-6 bg-slate-900 text-sm font-medium text-white" type="submit">Create user</button>
       </form>
       <div class="glass-card rounded-[2rem] p-7">
@@ -39,7 +39,7 @@
                 </div>
                 <div class="split-row__secondary text-left sm:text-right">
                   <p class="text-sm font-medium">{{ item.role|title }}</p>
-                  <p class="mt-1 text-xs uppercase tracking-[0.14em] text-slate-400">{{ "Verified" if item.email_verified else "Pending" }}</p>
+                  <p class="mt-1 text-xs uppercase tracking-[0.14em] text-slate-400">{{ "Active" if item.is_active else "Inactive" }}</p>
                 </div>
               </div>
             </div>

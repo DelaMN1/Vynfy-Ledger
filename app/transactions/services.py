@@ -475,6 +475,32 @@ def _can_edit(item: Transaction, actor: User) -> bool:
     return item.status in REVENUE_EDITABLE_STATUSES
 
 
+def can_edit_transaction(item: Transaction, actor: User) -> bool:
+    return _can_edit(item, actor)
+
+
+def expense_action_state(transaction: Transaction, actor: User) -> dict[str, bool]:
+    is_expense = transaction.transaction_type == TransactionType.EXPENSE.value
+    is_owner_or_admin = transaction.submitted_by_id == actor.id or actor.is_admin
+    return {
+        "show_submit": bool(is_expense and is_owner_or_admin and transaction.status == ExpenseStatus.DRAFT.value),
+        "show_approve": bool(actor.is_admin and transaction.status == ExpenseStatus.SUBMITTED.value),
+        "show_reject": bool(actor.is_admin and transaction.status == ExpenseStatus.SUBMITTED.value),
+        "show_return": bool(actor.is_admin and transaction.status == ExpenseStatus.SUBMITTED.value),
+        "show_mark_paid": bool(actor.is_admin and transaction.status == ExpenseStatus.APPROVED.value),
+        "show_delete_draft": bool(
+            is_expense
+            and transaction.status == ExpenseStatus.DRAFT.value
+            and is_owner_or_admin
+        )
+        or bool(
+            transaction.transaction_type == TransactionType.REVENUE.value
+            and transaction.status == RevenueStatus.DRAFT.value
+            and is_owner_or_admin
+        ),
+    }
+
+
 def create_transaction_from_form(*, form: TransactionFormLike, transaction_type: str, actor: User) -> Transaction:
     _validate_dates(form.transaction_date.data, form.due_date.data, form.settled_date.data)
     item = Transaction(

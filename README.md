@@ -19,7 +19,8 @@ The app is now PostgreSQL-first for normal runtime use. SQLite is not a supporte
 ## Main Capabilities
 
 - password-based authentication
-- email verification and password reset
+- direct self-registration with immediate access
+- password reset without email delivery
 - admin and staff roles
 - revenue and expense workflows
 - approval queue and admin-only actions
@@ -35,7 +36,7 @@ The app is now PostgreSQL-first for normal runtime use. SQLite is not a supporte
 vynfy_ledger/
 app/                    Flask app package
   admin/                admin views
-  auth/                 login, registration, password reset, verification
+  auth/                 login, registration, and password reset
   dashboard/            dashboard aggregation and views
   models/               SQLAlchemy models
   reconciliation/       reconciliation flows
@@ -148,18 +149,6 @@ Production secrets must be unique and at least 32 characters long.
 - `TRUST_PROXY_COUNT`
 - `REGISTRATION_ENABLED`
 
-### Email settings
-
-- `MAIL_FROM`
-- `SENDGRID_API_KEY`
-- `SMTP_HOST`
-- `SMTP_PORT`
-- `SMTP_USERNAME`
-- `SMTP_PASSWORD`
-- `SMTP_USE_TLS`
-
-In non-production environments, email falls back to files in `instance/outbox` when a provider is not configured or delivery fails.
-
 ## Database and Migrations
 
 This project uses Flask-Migrate / Alembic.
@@ -246,15 +235,6 @@ python -m flask --app run.py db upgrade
 
 If you are running this on Render Shell or a Render job, make sure the service environment includes the production `DATABASE_URL`.
 
-### Required production env vars beyond the blueprint defaults
-
-Set these in Render before relying on auth email flows:
-
-- `MAIL_FROM`
-- `SENDGRID_API_KEY`
-
-Without a real email provider, password reset and verification flows will not work in production.
-
 ### Importing legacy SQLite data into Render Postgres
 
 The recommended sequence is:
@@ -288,26 +268,20 @@ Notes:
 - the test suite uses its own test database configuration
 - use the repo virtualenv explicitly if you see missing-package errors
 
-## Authentication and Email Notes
+## Authentication Notes
 
 Current auth behavior includes:
 
 - password login
-- email verification
-- password reset
+- direct self-registration
+- password reset after direct email lookup
+- admin-created users are usable immediately
 - session rotation
 - admin route freshness checks
-
-Current email behavior:
-
-- SendGrid if configured
-- SMTP if configured
-- outbox-file fallback outside production when email is unavailable
 
 ## Filesystem Behavior
 
 - uploads are stored in `instance/uploads`
-- local email fallback files are stored in `instance/outbox`
 - the app enforces a max request size of 5 MB
 
 ## Troubleshooting
@@ -339,14 +313,6 @@ Set:
 ```text
 FORCE_HTTPS=false
 TRUST_PROXY_COUNT=0
-```
-
-### Local email is not arriving
-
-Check:
-
-```text
-instance/outbox
 ```
 
 ## Contribution Notes

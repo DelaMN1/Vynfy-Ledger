@@ -25,7 +25,7 @@ class RegisterForm(FlaskForm):
 
 class ForgotPasswordForm(FlaskForm):
     email = StringField("Email", validators=[DataRequired(), Email(), Length(max=255)])
-    submit = SubmitField("Send reset link")
+    submit = SubmitField("Continue")
 
 
 class ResetPasswordForm(FlaskForm):
@@ -46,11 +46,5 @@ class AdminUserForm(FlaskForm):
         validators=[DataRequired()],
     )
     can_create_revenue = BooleanField("Can create revenue")
-    email_verified = BooleanField("Email already verified")
     is_active = BooleanField("Active", default=True)
     submit = SubmitField("Create user")
-
-
-class ResendVerificationForm(FlaskForm):
-    email = StringField("Email", validators=[DataRequired(), Email(), Length(max=255)])
-    submit = SubmitField("Resend verification")

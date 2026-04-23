@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from pathlib import Path
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -9,12 +8,10 @@ from sqlalchemy.exc import IntegrityError
 import app.auth.services as auth_services
 from app.extensions import db
 from app.models import User, UserSession
-from app.utils.security import generate_token, hash_token
 from app.utils.time import utcnow
-from app.utils.types import PasswordResetTokenPayload, VerificationTokenPayload
 
 
-def test_registration_creates_unverified_user_and_outbox(client, app):
+def test_registration_creates_verified_user(client, app):
     response = client.post(
         "/register",
         data={
@@ -26,10 +23,13 @@ def test_registration_creates_unverified_user_and_outbox(client, app):
         follow_redirects=False,
     )
     assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
     with app.app_context():
         user = User.query.filter_by(email="new@example.com").first()
         assert user is not None
-        assert user.email_verified is False
+        assert user.email_verified is True
+        assert user.is_active is True
 
 
 def test_registration_duplicate_flush_shows_friendly_error(client, monkeypatch):
@@ -52,19 +52,90 @@ def test_registration_duplicate_flush_shows_friendly_error(client, monkeypatch):
     assert b"An account with that email already exists." in response.data
 
 
-def test_email_verification_flow(client, app):
+def test_login_allows_legacy_unverified_user(client, app):
     with app.app_context():
-        user = User(full_name="Pending User", email="pending@example.com", email_verified=False)
-        user.set_password("PendingPassword123")
+        user = User(full_name="Legacy User", email="legacy@example.com", email_verified=False)
+        user.set_password("LegacyPassword123")
         db.session.add(user)
         db.session.commit()
-        verification_payload: VerificationTokenPayload = {"purpose": "verify-email", "user_id": user.id}
-        token = generate_token(verification_payload)
-    response = client.get(f"/verify-email/{token}", follow_redirects=False)
+
+    response = client.post("/login", data={"email": "legacy@example.com", "password": "LegacyPassword123"}, follow_redirects=False)
     assert response.status_code == 302
+    assert response.headers["Location"].endswith("/dashboard")
+
+
+def test_forgot_password_redirects_to_reset_when_user_exists(client, app):
     with app.app_context():
-        user = User.query.filter_by(email="pending@example.com").first()
-        assert user.email_verified is True
+        user = User(full_name="Reset User", email="reset@example.com", email_verified=True)
+        user.set_password("ResetStart123")
+        db.session.add(user)
+        db.session.commit()
+
+    response = client.post("/forgot-password", data={"email": "reset@example.com"}, follow_redirects=False)
+    assert response.status_code == 302
+    assert "/reset-password/" in response.headers["Location"]
+
+
+def test_forgot_password_shows_error_when_user_missing(client):
+    response = client.post("/forgot-password", data={"email": "missing@example.com"}, follow_redirects=True)
+    assert response.status_code == 200
+    assert b"No account was found for that email." in response.data
+
+
+def test_password_reset_updates_password_and_revokes_sessions(client, app):
+    with app.app_context():
+        user = User(full_name="Reset User", email="reset@example.com", email_verified=True)
+        user.set_password("ResetStart123")
+        db.session.add(user)
+        db.session.flush()
+        active_session = UserSession(
+            user_id=user.id,
+            token_hash="active-session-hash",
+            issued_at=utcnow(),
+            expires_at=utcnow() + timedelta(minutes=30),
+            second_factor_verified_at=utcnow(),
+        )
+        db.session.add(active_session)
+        db.session.commit()
+        user_id = user.id
+
+    first = client.post("/forgot-password", data={"email": "reset@example.com"}, follow_redirects=False)
+    token = first.headers["Location"].rsplit("/", 1)[-1]
+    reset = client.post(
+        f"/reset-password/{token}",
+        data={"password": "ResetFresh123", "confirm_password": "ResetFresh123"},
+        follow_redirects=False,
+    )
+    assert reset.status_code == 302
+    assert reset.headers["Location"].endswith("/login")
+
+    with app.app_context():
+        user = db.session.get(User, user_id)
+        assert user.check_password("ResetFresh123")
+        assert UserSession.query.filter_by(user_id=user_id, revoked_at=None).count() == 0
+
+
+def test_password_reset_token_cannot_be_reused(client, app):
+    with app.app_context():
+        user = User(full_name="Reset User", email="reset@example.com", email_verified=True)
+        user.set_password("ResetStart123")
+        db.session.add(user)
+        db.session.commit()
+
+    first = client.post("/forgot-password", data={"email": "reset@example.com"}, follow_redirects=False)
+    token = first.headers["Location"].rsplit("/", 1)[-1]
+    client.post(
+        f"/reset-password/{token}",
+        data={"password": "ResetFresh123", "confirm_password": "ResetFresh123"},
+        follow_redirects=False,
+    )
+    reused = client.post(
+        f"/reset-password/{token}",
+        data={"password": "AnotherFresh123", "confirm_password": "AnotherFresh123"},
+        follow_redirects=True,
+    )
+    assert reused.status_code == 200
+    assert b"Password reset link is invalid." in reused.data
 
 
 def test_login_logout_and_session_rotation(client, app, sample_data, login):
@@ -97,14 +168,6 @@ def test_login_logout_and_session_rotation(client, app, sample_data, login):
         assert UserSession.query.filter(UserSession.revoked_at.is_(None)).count() == 0
 
 
-def test_login_does_not_send_challenge_email(client, app, sample_data):
-    outbox_dir = Path(app.config["OUTBOX_FOLDER"])
-    response = client.post("/login", data={"email": "staff@example.com", "password": "StaffPassword123"}, follow_redirects=False)
-    assert response.status_code == 302
-    assert response.headers["Location"].endswith("/dashboard")
-    assert not outbox_dir.exists() or not any(outbox_dir.iterdir())
-
-
 def test_fresh_login_revokes_prior_active_sessions(app, sample_data):
     first_client = app.test_client()
     second_client = app.test_client()
@@ -128,45 +191,6 @@ def test_fresh_login_revokes_prior_active_sessions(app, sample_data):
 
 def test_csrf_tokens_do_not_expire_by_default(app):
     assert app.config["WTF_CSRF_TIME_LIMIT"] is None
-
-
-def test_password_reset_invalidates_existing_reset_tokens_and_sessions(client, app):
-    with app.app_context():
-        user = User(full_name="Reset User", email="reset@example.com", email_verified=True)
-        user.set_password("ResetPassword123")
-        db.session.add(user)
-        db.session.flush()
-        active_session = UserSession(
-            user_id=user.id,
-            token_hash=hash_token("active-session"),
-            issued_at=utcnow(),
-            expires_at=utcnow() + timedelta(minutes=30),
-            second_factor_verified_at=utcnow(),
-        )
-        db.session.add(active_session)
-        db.session.commit()
-        token = generate_token(
-            {
-                "purpose": "reset-password",
-                "user_id": user.id,
-                "password_changed_at": user.password_changed_at.isoformat(),
-            }
-        )
-        user_id = user.id
-        session_id = active_session.id
-
-    with app.test_request_context("/reset-password/test", method="POST"):
-        auth_services.reset_user_password(token, "BrandNewCredential123")
-        db.session.commit()
-
-    with app.app_context():
-        user = db.session.get(User, user_id)
-        assert user.check_password("BrandNewCredential123")
-        assert db.session.get(UserSession, session_id).revoked_at is not None
-
-    with app.test_request_context("/reset-password/test", method="POST"):
-        with pytest.raises(ValueError, match="Password reset link is invalid."):
-            auth_services.reset_user_password(token, "AnotherFreshCredential123")
 
 
 def test_failed_login_locks_account(client, app, sample_data):
@@ -226,33 +250,6 @@ def test_login_next_redirect_is_sanitized(client, sample_data):
     assert response.headers["Location"].endswith("/dashboard")
 
 
-def test_password_reset_uses_configured_expiry(client, app, monkeypatch):
-    with app.app_context():
-        user = User(full_name="Reset User", email="reset@example.com", email_verified=True)
-        user.set_password("ResetPassword123")
-        db.session.add(user)
-        db.session.commit()
-        user_id = user.id
-
-    captured = {}
-
-    def fake_load_token(_token: str, max_age: int) -> PasswordResetTokenPayload:
-        captured["max_age"] = max_age
-        with app.app_context():
-            user = db.session.get(User, user_id)
-            return {
-                "purpose": "reset-password",
-                "user_id": user_id,
-                "password_changed_at": user.password_changed_at.isoformat(),
-            }
-
-    monkeypatch.setattr(auth_services, "load_token", fake_load_token)
-    with app.app_context():
-        auth_services.reset_user_password("token", "FreshCredential123")
-
-    assert captured["max_age"] == app.config["PASSWORD_RESET_MINUTES"] * 60
-
-
 def test_admin_routes_require_recent_sign_in(client, app, sample_data, login):
     login("admin@example.com", "AdminPassword123")
     with app.app_context():
@@ -280,20 +277,6 @@ def test_admin_post_redirect_does_not_preserve_post_next(client, app, sample_dat
     response = client.post("/settings/categories", data={"name": "Ops", "type": "Expense", "color": "#123456"}, follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/login")
-def test_production_password_reset_does_not_fallback_to_outbox(client, app):
-    with app.app_context():
-        user = User(full_name="Prod User", email="prod@example.com", email_verified=True)
-        user.set_password("ProdPassword123")
-        db.session.add(user)
-        db.session.commit()
-
-    app.config.update(APP_ENV="production", SENDGRID_API_KEY=None, SMTP_HOST=None, SMTP_USERNAME=None, SMTP_PASSWORD=None)
-    response = client.post("/forgot-password", data={"email": "prod@example.com"}, follow_redirects=True)
-
-    assert response.status_code == 200
-    assert b"Email delivery is not configured for this environment." in response.data
-    outbox_dir = Path(app.config["OUTBOX_FOLDER"])
-    assert not outbox_dir.exists() or not any(outbox_dir.iterdir())
 
 
 def test_responses_include_content_security_policy(client):

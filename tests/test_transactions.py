@@ -82,6 +82,44 @@ def test_duplicate_approve_does_not_overwrite_existing_approval(client, app, sam
         assert item.status == ExpenseStatus.APPROVED.value
 
 
+def test_submitted_expense_hides_submit_button_for_staff(client, sample_data, login):
+    login("staff@example.com", "StaffPassword123")
+    response = client.get(f"/expenses/{sample_data['submitted_expense_id']}")
+
+    assert response.status_code == 200
+    assert b"Submit expense" not in response.data
+
+
+def test_approved_expense_hides_admin_decision_buttons(client, app, sample_data, login):
+    login("admin@example.com", "AdminPassword123")
+    client.post(f"/expenses/{sample_data['submitted_expense_id']}/approve", follow_redirects=False)
+
+    response = client.get(f"/expenses/{sample_data['submitted_expense_id']}")
+
+    assert response.status_code == 200
+    assert f"/expenses/{sample_data['submitted_expense_id']}/approve".encode() not in response.data
+    assert f"/expenses/{sample_data['submitted_expense_id']}/reject".encode() not in response.data
+    assert f"/expenses/{sample_data['submitted_expense_id']}/return".encode() not in response.data
+    assert b"Mark paid" in response.data
+
+
+def test_returned_expense_hides_admin_decision_buttons(client, app, sample_data, login):
+    login("admin@example.com", "AdminPassword123")
+    client.post(
+        f"/expenses/{sample_data['submitted_expense_id']}/return",
+        data={"note": "Please attach the invoice."},
+        follow_redirects=False,
+    )
+
+    response = client.get(f"/expenses/{sample_data['submitted_expense_id']}")
+
+    assert response.status_code == 200
+    assert f"/expenses/{sample_data['submitted_expense_id']}/approve".encode() not in response.data
+    assert f"/expenses/{sample_data['submitted_expense_id']}/reject".encode() not in response.data
+    assert f"/expenses/{sample_data['submitted_expense_id']}/return".encode() not in response.data
+    assert b"Mark paid" not in response.data
+
+
 def test_attachment_validation_blocks_invalid_files(client, app, sample_data, login):
     login("staff@example.com", "StaffPassword123")
     response = client.post(

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias, TypeVar, TypedDict
+from typing import TYPE_CHECKING, Protocol, TypeAlias, TypeVar, TypedDict
 
 if TYPE_CHECKING:
     from app.models import Transaction
@@ -15,6 +15,7 @@ ReportOption: TypeAlias = tuple[str, str]
 ReportOptions: TypeAlias = tuple[ReportOption, ...]
 JsonPrimitive: TypeAlias = str | int | float | bool | None
 JsonValue: TypeAlias = JsonPrimitive | list["JsonValue"] | dict[str, "JsonValue"]
+TokenPayload: TypeAlias = dict[str, JsonValue]
 FieldValueT = TypeVar("FieldValueT")
 
 
@@ -120,20 +121,6 @@ class DashboardContext(TypedDict):
     budget_rows: list[BudgetHealthRow]
     action_queue: list[DashboardQueueItem]
     drilldown_rows: list[DashboardDrilldownRow]
-
-
-class VerificationTokenPayload(TypedDict):
-    purpose: Literal["verify-email"]
-    user_id: int
-
-
-class PasswordResetTokenPayload(TypedDict):
-    purpose: Literal["reset-password"]
-    user_id: int
-    password_changed_at: str
-
-
-TokenPayload: TypeAlias = VerificationTokenPayload | PasswordResetTokenPayload
 
 
 class TransactionChoiceForm(Protocol):

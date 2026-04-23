@@ -72,25 +72,15 @@ class Config:
     PREFERRED_URL_SCHEME = "https" if APP_ENV == "production" else "http"
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024
     UPLOAD_FOLDER = str(INSTANCE_DIR / "uploads")
-    OUTBOX_FOLDER = str(INSTANCE_DIR / "outbox")
     ACCESS_SESSION_TTL = timedelta(minutes=int(os.getenv("ACCESS_SESSION_MINUTES", "45")))
     SESSION_ROTATE_AFTER = timedelta(minutes=int(os.getenv("SESSION_ROTATE_AFTER_MINUTES", "15")))
     LOGIN_LOCKOUT_BASE_MINUTES = int(os.getenv("LOGIN_LOCKOUT_BASE_MINUTES", "1"))
     MAX_LOGIN_LOCKOUT_MINUTES = int(os.getenv("MAX_LOGIN_LOCKOUT_MINUTES", "60"))
     MAX_FAILED_LOGINS = int(os.getenv("MAX_FAILED_LOGINS", "10"))
-    PASSWORD_RESET_MINUTES = int(os.getenv("PASSWORD_RESET_MINUTES", "30"))
+    PASSWORD_RESET_MINUTES = int(os.getenv("PASSWORD_RESET_MINUTES", "15"))
     ADMIN_STEP_UP_MINUTES = int(os.getenv("ADMIN_STEP_UP_MINUTES", "15"))
     PASSWORD_MIN_LENGTH = 12
     REGISTRATION_ENABLED = os.getenv("REGISTRATION_ENABLED", "true").lower() == "true"
-    MAIL_FROM = os.getenv("MAIL_FROM", "no-reply@vynfy.internal")
-    SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY") or (
-        os.getenv("SMTP_PASSWORD") if os.getenv("SMTP_HOST") == "smtp.sendgrid.net" and os.getenv("SMTP_USERNAME") == "apikey" else None
-    )
-    SMTP_HOST = os.getenv("SMTP_HOST")
-    SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-    SMTP_USERNAME = os.getenv("SMTP_USERNAME")
-    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-    SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
     FORCE_HTTPS = os.getenv("FORCE_HTTPS", "true" if APP_ENV == "production" else "false").lower() == "true"
     TRUST_PROXY_COUNT = int(os.getenv("TRUST_PROXY_COUNT", "1" if APP_ENV == "production" else "0"))
     RATELIMIT_HEADERS_ENABLED = True

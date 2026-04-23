@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from decimal import Decimal
 
-from app.models import Account, AccountingMapping, Budget, Category, PaymentMethod, SpendPolicy
+from app.models import Account, AccountingMapping, Budget, Category, PaymentMethod, SpendPolicy, User
 from app.utils.enums import AccountType, TransactionType
 
 
@@ -147,3 +147,24 @@ def test_new_settings_pages_render_for_admin(client, sample_data, login):
     assert client.get("/settings/budgets").status_code == 200
     assert client.get("/settings/policies").status_code == 200
     assert client.get("/settings/accounting-mappings").status_code == 200
+
+
+def test_admin_user_creation_is_immediately_usable(client, app, sample_data, login):
+    login("admin@example.com", "AdminPassword123")
+    response = client.post(
+        "/settings/users",
+        data={
+            "full_name": "Ops User",
+            "email": "ops@example.com",
+            "password": "OpsAccess123",
+            "role": "staff",
+            "is_active": "y",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        user = User.query.filter_by(email="ops@example.com").one()
+        assert user.email_verified is True
+        assert user.is_active is True
