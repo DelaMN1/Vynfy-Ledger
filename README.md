@@ -19,8 +19,8 @@ The app is now PostgreSQL-first for normal runtime use. SQLite is not a supporte
 ## Main Capabilities
 
 - password-based authentication
-- direct self-registration with immediate access
-- password reset without email delivery
+- optional self-registration when explicitly enabled
+- self-service password reset only when a secure delivery channel is configured
 - admin and staff roles
 - revenue and expense workflows
 - approval queue and admin-only actions
@@ -148,6 +148,8 @@ Production secrets must be unique and at least 32 characters long.
 - `FORCE_HTTPS`
 - `TRUST_PROXY_COUNT`
 - `REGISTRATION_ENABLED`
+- `SELF_SERVICE_PASSWORD_RESET_ENABLED`
+- `RATELIMIT_STORAGE_URI`
 
 ## Database and Migrations
 
@@ -219,6 +221,8 @@ What it prepares:
 - `DATABASE_URL` wired from the Render database connection string
 - generated `SECRET_KEY` and `SECURITY_PASSWORD_SALT`
 - `APP_ENV=production`
+- self-service registration disabled by default
+- self-service password reset disabled by default
 - `gunicorn run:app` as the production start command
 
 ### Before creating resources
@@ -273,9 +277,9 @@ Notes:
 Current auth behavior includes:
 
 - password login
-- direct self-registration
-- password reset after direct email lookup
 - admin-created users are usable immediately
+- self-service registration can be enabled explicitly
+- self-service password reset can be enabled explicitly once a secure delivery channel exists
 - session rotation
 - admin route freshness checks
 

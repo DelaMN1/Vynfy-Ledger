@@ -40,6 +40,13 @@ def _is_production() -> bool:
     return DEFAULT_CONFIG_NAME == "production"
 
 
+def _env_flag(name: str, *, default_in_production: bool, default_outside_production: bool) -> bool:
+    value = (os.getenv(name) or "").strip().lower()
+    if value:
+        return value == "true"
+    return default_in_production if _is_production() else default_outside_production
+
+
 def _csrf_time_limit() -> int | None:
     value = (os.getenv("WTF_CSRF_TIME_LIMIT") or "").strip()
     if not value or value.lower() == "none":
@@ -80,11 +87,21 @@ class Config:
     PASSWORD_RESET_MINUTES = int(os.getenv("PASSWORD_RESET_MINUTES", "15"))
     ADMIN_STEP_UP_MINUTES = int(os.getenv("ADMIN_STEP_UP_MINUTES", "15"))
     PASSWORD_MIN_LENGTH = 12
-    REGISTRATION_ENABLED = os.getenv("REGISTRATION_ENABLED", "true").lower() == "true"
+    REGISTRATION_ENABLED = _env_flag(
+        "REGISTRATION_ENABLED",
+        default_in_production=False,
+        default_outside_production=False,
+    )
+    SELF_SERVICE_PASSWORD_RESET_ENABLED = _env_flag(
+        "SELF_SERVICE_PASSWORD_RESET_ENABLED",
+        default_in_production=False,
+        default_outside_production=False,
+    )
     FORCE_HTTPS = os.getenv("FORCE_HTTPS", "true" if APP_ENV == "production" else "false").lower() == "true"
     TRUST_PROXY_COUNT = int(os.getenv("TRUST_PROXY_COUNT", "1" if APP_ENV == "production" else "0"))
     RATELIMIT_HEADERS_ENABLED = True
     RATELIMIT_DEFAULT = "300 per hour"
+    RATELIMIT_STORAGE_URI = os.getenv("RATELIMIT_STORAGE_URI", "memory://")
     DEFAULT_PAGE_SIZE = 10
     DASHBOARD_MONTHS = 6
     COMPANY_NAME = os.getenv("COMPANY_NAME", "Vynfy")

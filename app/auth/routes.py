@@ -16,6 +16,11 @@ from app.extensions import db, limiter
 
 
 auth_bp = Blueprint("auth", __name__)
+REGISTRATION_DISABLED_MESSAGE = "Self-service registration is unavailable. Ask an admin to create your account."
+PASSWORD_RESET_DISABLED_MESSAGE = "Self-service password reset is unavailable. Contact an admin to reset your password."
+PASSWORD_RESET_REQUESTED_MESSAGE = (
+    "If an active account matches that email, reset instructions will be delivered through your configured recovery channel."
+)
 
 
 def _safe_next_url(raw_value: str | None) -> str:
@@ -51,7 +56,7 @@ def login():
 @limiter.limit("5 per minute")
 def register():
     if not current_app.config["REGISTRATION_ENABLED"]:
-        flash("Registration is disabled. Ask an admin to create your account.", "warning")
+        flash(REGISTRATION_DISABLED_MESSAGE, "warning")
         return redirect(url_for("auth.login"))
 
     form = RegisterForm()
@@ -70,21 +75,31 @@ def register():
 @auth_bp.route("/forgot-password", methods=["GET", "POST"])
 @limiter.limit("5 per minute")
 def forgot_password():
+    if not current_app.config["SELF_SERVICE_PASSWORD_RESET_ENABLED"]:
+        if request.method == "POST":
+            flash(PASSWORD_RESET_DISABLED_MESSAGE, "warning")
+            return redirect(url_for("auth.login"))
+        return render_template("auth/forgot_password.html", form=None, reset_disabled=True)
+
     form = ForgotPasswordForm()
     if form.validate_on_submit():
         try:
-            token = begin_password_reset(form.email.data)
+            begin_password_reset(form.email.data)
             db.session.commit()
-            return redirect(url_for("auth.reset_password", token=token))
+            flash(PASSWORD_RESET_REQUESTED_MESSAGE, "info")
+            return redirect(url_for("auth.login"))
         except ValueError as exc:
             db.session.rollback()
             flash(str(exc), "error")
-    return render_template("auth/forgot_password.html", form=form)
+    return render_template("auth/forgot_password.html", form=form, reset_disabled=False)
 
 
 @auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
 @limiter.limit("5 per minute")
 def reset_password(token: str):
+    if not current_app.config["SELF_SERVICE_PASSWORD_RESET_ENABLED"]:
+        return render_template("partials/error.html", title="Not found", message="The requested page could not be found."), 404
+
     form = ResetPasswordForm()
     if form.validate_on_submit():
         try:

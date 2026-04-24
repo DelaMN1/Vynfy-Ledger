@@ -29,7 +29,11 @@ services:
       - key: TRUST_PROXY_COUNT
         value: "1"
       - key: REGISTRATION_ENABLED
-        value: "true"
+        value: "false"
+      - key: SELF_SERVICE_PASSWORD_RESET_ENABLED
+        value: "false"
+      - key: RATELIMIT_STORAGE_URI
+        sync: false
       - key: COMPANY_NAME
         value: Vynfy
       - key: MAIL_FROM

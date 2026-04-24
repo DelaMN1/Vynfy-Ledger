@@ -12,7 +12,7 @@ logger = logging.getLogger("alembic.env")
 
 
 def get_engine_url():
-    return current_app.extensions["migrate"].db.engine.url.render_as_string(hide_password=False).replace("%", "%%")
+    return current_app.extensions["migrate"].db.engine.url.render_as_string(hide_password=True).replace("%", "%%")
 
 
 config.set_main_option('sqlalchemy.url', get_engine_url())

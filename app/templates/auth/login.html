@@ -40,7 +40,11 @@
           <button class="w-full rounded-2xl bg-slate-950 px-5 py-3 font-medium text-white" type="submit">Sign In</button>
         </form>
         <div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5 text-sm">
-          <a class="font-medium text-slate-600 transition hover:text-slate-900" href="{{ url_for('auth.forgot_password') }}">Forgot password?</a>
+          {% if config.SELF_SERVICE_PASSWORD_RESET_ENABLED %}
+            <a class="font-medium text-slate-600 transition hover:text-slate-900" href="{{ url_for('auth.forgot_password') }}">Forgot password?</a>
+          {% else %}
+            <span class="text-slate-500">Password resets are handled internally.</span>
+          {% endif %}
           {% if config.REGISTRATION_ENABLED %}
             <a class="font-medium text-slate-600 transition hover:text-slate-900" href="{{ url_for('auth.register') }}">Create account</a>
           {% else %}

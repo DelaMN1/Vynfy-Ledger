@@ -12,6 +12,7 @@ from app.utils.time import utcnow
 
 
 def test_registration_creates_verified_user(client, app):
+    app.config["REGISTRATION_ENABLED"] = True
     response = client.post(
         "/register",
         data={
@@ -33,6 +34,8 @@ def test_registration_creates_verified_user(client, app):
 
 
 def test_registration_duplicate_flush_shows_friendly_error(client, monkeypatch):
+    client.application.config["REGISTRATION_ENABLED"] = True
+
     def duplicate_flush(*args, **kwargs):
         raise IntegrityError("insert users", {}, Exception("UNIQUE constraint failed: users.email"))
 
@@ -49,7 +52,13 @@ def test_registration_duplicate_flush_shows_friendly_error(client, monkeypatch):
     )
 
     assert response.status_code == 200
-    assert b"An account with that email already exists." in response.data
+    assert b"Registration could not be completed." in response.data
+
+
+def test_registration_is_disabled_by_default(client):
+    response = client.get("/register", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
 
 
 def test_login_allows_legacy_unverified_user(client, app):
@@ -64,25 +73,37 @@ def test_login_allows_legacy_unverified_user(client, app):
     assert response.headers["Location"].endswith("/dashboard")
 
 
-def test_forgot_password_redirects_to_reset_when_user_exists(client, app):
+def test_forgot_password_shows_generic_message_when_enabled(client, app):
+    app.config["SELF_SERVICE_PASSWORD_RESET_ENABLED"] = True
+
     with app.app_context():
         user = User(full_name="Reset User", email="reset@example.com", email_verified=True)
         user.set_password("ResetStart123")
         db.session.add(user)
         db.session.commit()
 
-    response = client.post("/forgot-password", data={"email": "reset@example.com"}, follow_redirects=False)
-    assert response.status_code == 302
-    assert "/reset-password/" in response.headers["Location"]
+    response = client.post("/forgot-password", data={"email": "reset@example.com"}, follow_redirects=True)
+    assert response.status_code == 200
+    assert b"If an active account matches that email" in response.data
 
 
-def test_forgot_password_shows_error_when_user_missing(client):
+def test_forgot_password_is_non_enumerating_when_user_missing(client, app):
+    app.config["SELF_SERVICE_PASSWORD_RESET_ENABLED"] = True
+
     response = client.post("/forgot-password", data={"email": "missing@example.com"}, follow_redirects=True)
     assert response.status_code == 200
-    assert b"No account was found for that email." in response.data
+    assert b"If an active account matches that email" in response.data
+
+
+def test_forgot_password_is_disabled_by_default(client):
+    response = client.get("/forgot-password", follow_redirects=False)
+    assert response.status_code == 200
+    assert b"Self-service password reset is disabled." in response.data
 
 
 def test_password_reset_updates_password_and_revokes_sessions(client, app):
+    app.config["SELF_SERVICE_PASSWORD_RESET_ENABLED"] = True
+
     with app.app_context():
         user = User(full_name="Reset User", email="reset@example.com", email_verified=True)
         user.set_password("ResetStart123")
@@ -98,9 +119,8 @@ def test_password_reset_updates_password_and_revokes_sessions(client, app):
         db.session.add(active_session)
         db.session.commit()
         user_id = user.id
+        token = auth_services.begin_password_reset("reset@example.com")
 
-    first = client.post("/forgot-password", data={"email": "reset@example.com"}, follow_redirects=False)
-    token = first.headers["Location"].rsplit("/", 1)[-1]
     reset = client.post(
         f"/reset-password/{token}",
         data={"password": "ResetFresh123", "confirm_password": "ResetFresh123"},
@@ -116,14 +136,15 @@ def test_password_reset_updates_password_and_revokes_sessions(client, app):
 
 
 def test_password_reset_token_cannot_be_reused(client, app):
+    app.config["SELF_SERVICE_PASSWORD_RESET_ENABLED"] = True
+
     with app.app_context():
         user = User(full_name="Reset User", email="reset@example.com", email_verified=True)
         user.set_password("ResetStart123")
         db.session.add(user)
         db.session.commit()
+        token = auth_services.begin_password_reset("reset@example.com")
 
-    first = client.post("/forgot-password", data={"email": "reset@example.com"}, follow_redirects=False)
-    token = first.headers["Location"].rsplit("/", 1)[-1]
     client.post(
         f"/reset-password/{token}",
         data={"password": "ResetFresh123", "confirm_password": "ResetFresh123"},

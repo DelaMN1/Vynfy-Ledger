@@ -39,9 +39,12 @@ def _build_user(
     role: str,
     can_create_revenue: bool,
     is_active: bool,
+    hide_existing_account_errors: bool = False,
 ) -> User:
     normalized_email = normalize_email(email)
     if User.query.filter_by(email=normalized_email).first():
+        if hide_existing_account_errors:
+            raise ServiceError("Registration could not be completed.")
         raise ServiceError("An account with that email already exists.")
 
     password_errors = validate_password_policy(password)
@@ -61,6 +64,8 @@ def _build_user(
     try:
         db.session.flush()
     except IntegrityError as exc:
+        if hide_existing_account_errors:
+            raise ServiceError("Registration could not be completed.") from exc
         raise ServiceError("An account with that email already exists.") from exc
     return user
 
@@ -73,6 +78,7 @@ def register_user(*, full_name: str, email: str, password: str, role: str = "sta
         role=role,
         can_create_revenue=can_create_revenue,
         is_active=True,
+        hide_existing_account_errors=True,
     )
     record_audit(user_id=user.id, entity_type="user", entity_id=user.id, action="register", new_values={"email": user.email})
     return user
@@ -144,10 +150,8 @@ def _reset_payload(user: User) -> dict[str, str | int]:
 def begin_password_reset(email: str) -> str:
     normalized_email = normalize_email(email)
     user = User.query.filter_by(email=normalized_email).first()
-    if not user:
-        raise ServiceError("No account was found for that email.")
-    if not user.is_active:
-        raise ServiceError("This account is inactive. Ask an admin for access.")
+    if not user or not user.is_active:
+        return ""
     return generate_token(_reset_payload(user))
 
 
