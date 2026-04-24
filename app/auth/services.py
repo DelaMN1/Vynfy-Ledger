@@ -11,6 +11,7 @@ from app.models.session import UserSession
 from app.models.user import User
 from app.utils.audit import record_audit
 from app.utils.auth import create_session, revoke_session
+from app.utils.enums import Role
 from app.utils.exceptions import ServiceError
 from app.utils.security import (
     consume_dummy_password_check,
@@ -101,6 +102,33 @@ def create_user_by_admin(
         entity_id=user.id,
         action="admin_create_user",
         new_values={"role": role, "is_active": is_active},
+    )
+    return user
+
+
+def update_user_role(*, actor: User, user: User, role: str) -> User:
+    if not actor.is_admin:
+        raise ServiceError("Only admins can update user roles.")
+    if role not in {Role.ADMIN.value, Role.STAFF.value}:
+        raise ServiceError("Select a valid role.")
+    if user.id == actor.id and role != Role.ADMIN.value:
+        raise ServiceError("You cannot remove your own admin access.")
+    if user.role == Role.ADMIN.value and role != Role.ADMIN.value and user.is_active:
+        active_admin_count = User.query.filter_by(role=Role.ADMIN.value, is_active=True).count()
+        if active_admin_count <= 1:
+            raise ServiceError("At least one active admin account is required.")
+    if user.role == role:
+        return user
+
+    previous_role = user.role
+    user.role = role
+    record_audit(
+        user_id=actor.id,
+        entity_type="user",
+        entity_id=user.id,
+        action="admin_update_user_role",
+        old_values={"role": previous_role},
+        new_values={"role": role},
     )
     return user
 

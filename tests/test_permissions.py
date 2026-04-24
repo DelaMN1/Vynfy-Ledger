@@ -5,6 +5,8 @@ def test_staff_cannot_access_admin_routes(client, sample_data, login):
     login("staff@example.com", "StaffPassword123")
     response = client.get("/settings/categories")
     assert response.status_code == 403
+    role_response = client.post(f"/settings/users/{sample_data['outsider_id']}/role", data={"role": "admin"}, follow_redirects=False)
+    assert role_response.status_code == 403
 
 
 def test_staff_cannot_view_other_users_private_items(client, sample_data, login):

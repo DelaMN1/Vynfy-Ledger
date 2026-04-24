@@ -3,8 +3,9 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from decimal import Decimal
 
-from app.models import Account, AccountingMapping, Budget, Category, PaymentMethod, SpendPolicy, User
-from app.utils.enums import AccountType, TransactionType
+from app.extensions import db
+from app.models import Account, AccountingMapping, AuditLog, Budget, Category, PaymentMethod, SpendPolicy, User
+from app.utils.enums import AccountType, Role, TransactionType
 
 
 SettingsModel = Account | Category | PaymentMethod | Budget | SpendPolicy | AccountingMapping
@@ -168,3 +169,57 @@ def test_admin_user_creation_is_immediately_usable(client, app, sample_data, log
         user = User.query.filter_by(email="ops@example.com").one()
         assert user.email_verified is True
         assert user.is_active is True
+
+
+def test_admin_can_promote_staff_user(client, app, sample_data, login):
+    login("admin@example.com", "AdminPassword123")
+    response = client.post(
+        f"/settings/users/{sample_data['staff_id']}/role",
+        data={"role": Role.ADMIN.value},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        user = db.session.get(User, sample_data["staff_id"])
+        assert user is not None
+        assert user.role == Role.ADMIN.value
+        audit = AuditLog.query.filter_by(entity_type="user", entity_id=user.id, action="admin_update_user_role").one()
+        assert audit.old_values_json == {"role": Role.STAFF.value}
+        assert audit.new_values_json == {"role": Role.ADMIN.value}
+
+
+def test_admin_can_demote_other_admin_user(client, app, sample_data, login):
+    with app.app_context():
+        promoted_admin = db.session.get(User, sample_data["staff_id"])
+        assert promoted_admin is not None
+        promoted_admin.role = Role.ADMIN.value
+        db.session.commit()
+
+    login("admin@example.com", "AdminPassword123")
+    response = client.post(
+        f"/settings/users/{sample_data['staff_id']}/role",
+        data={"role": Role.STAFF.value},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        user = db.session.get(User, sample_data["staff_id"])
+        assert user is not None
+        assert user.role == Role.STAFF.value
+
+
+def test_admin_cannot_demote_self(client, app, sample_data, login):
+    login("admin@example.com", "AdminPassword123")
+    response = client.post(
+        f"/settings/users/{sample_data['admin_id']}/role",
+        data={"role": Role.STAFF.value},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        user = db.session.get(User, sample_data["admin_id"])
+        assert user is not None
+        assert user.role == Role.ADMIN.value

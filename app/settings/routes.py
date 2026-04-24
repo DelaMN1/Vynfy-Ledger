@@ -2,15 +2,16 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from flask import Blueprint, Response, flash, g, redirect, render_template, url_for
+from flask import Blueprint, Response, abort, flash, g, redirect, render_template, url_for
 
 from app.auth.forms import AdminUserForm
-from app.auth.services import create_user_by_admin
+from app.auth.services import create_user_by_admin, update_user_role
 from app.extensions import db
 from app.models import Account, AccountingMapping, Budget, Category, PaymentMethod, SpendPolicy, User
-from app.settings.forms import AccountForm, AccountingMappingForm, BudgetForm, CategoryForm, PaymentMethodForm, SpendPolicyForm
+from app.settings.forms import AccountForm, AccountingMappingForm, BudgetForm, CategoryForm, PaymentMethodForm, SpendPolicyForm, UserRoleForm
 from app.settings.services import create_account, create_accounting_mapping, create_budget, create_category, create_payment_method, create_spend_policy
 from app.utils.decorators import admin_required
+from app.utils.exceptions import ServiceError
 
 
 settings_bp = Blueprint("settings", __name__)
@@ -110,6 +111,7 @@ def payment_methods():
 @admin_required
 def users():
     form = AdminUserForm()
+    user_role_form = UserRoleForm()
     if form.validate_on_submit():
         response = _submit_settings_change(
             success_message="User created.",
@@ -126,7 +128,30 @@ def users():
         )
         if response:
             return response
-    return render_template("settings/users.html", form=form, **_settings_context())
+    return render_template("settings/users.html", form=form, user_role_form=user_role_form, **_settings_context())
+
+
+@settings_bp.post("/settings/users/<int:user_id>/role")
+@admin_required
+def update_user_role_action(user_id: int):
+    form = UserRoleForm()
+    if not form.validate_on_submit():
+        flash("Select a valid role.", "error")
+        return redirect(url_for("settings.users"))
+
+    user = db.session.get(User, user_id)
+    if not user:
+        abort(404)
+
+    try:
+        update_user_role(actor=g.current_user, user=user, role=form.role.data)
+        db.session.commit()
+    except ServiceError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+    else:
+        flash("User role updated.", "success")
+    return redirect(url_for("settings.users"))
 
 
 @settings_bp.route("/settings/budgets", methods=["GET", "POST"])

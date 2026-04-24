@@ -4,7 +4,7 @@ from flask_wtf import FlaskForm
 from wtforms import BooleanField, DecimalField, IntegerField, SelectField, StringField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length, NumberRange, Optional
 
-from app.utils.enums import AccountType, CategoryType, TransactionType, choices
+from app.utils.enums import AccountType, CategoryType, Role, TransactionType, choices
 
 
 class CategoryForm(FlaskForm):
@@ -26,6 +26,10 @@ class AccountForm(FlaskForm):
 class PaymentMethodForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired(), Length(max=80)])
     submit = SubmitField("Save payment method")
+
+
+class UserRoleForm(FlaskForm):
+    role = SelectField("Role", choices=choices(Role), validators=[DataRequired()])
 
 
 class BudgetForm(FlaskForm):

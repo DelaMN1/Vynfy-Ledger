@@ -40,6 +40,24 @@
                 <div class="split-row__secondary text-left sm:text-right">
                   <p class="text-sm font-medium">{{ item.role|title }}</p>
                   <p class="mt-1 text-xs uppercase tracking-[0.14em] text-slate-400">{{ "Active" if item.is_active else "Inactive" }}</p>
+                  <div class="mt-3 flex flex-wrap items-center gap-2 sm:justify-end">
+                    {% if item.id == current_user.id %}
+                      <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase tracking-[0.14em] text-slate-500">Signed in account</span>
+                    {% endif %}
+                    {% if item.is_admin and item.id != current_user.id %}
+                      <form method="post" action="{{ url_for('settings.update_user_role_action', user_id=item.id) }}">
+                        {{ user_role_form.csrf_token }}
+                        <input type="hidden" name="role" value="staff">
+                        <button class="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50" type="submit">Change to staff</button>
+                      </form>
+                    {% elif not item.is_admin %}
+                      <form method="post" action="{{ url_for('settings.update_user_role_action', user_id=item.id) }}">
+                        {{ user_role_form.csrf_token }}
+                        <input type="hidden" name="role" value="admin">
+                        <button class="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100" type="submit">Promote to admin</button>
+                      </form>
+                    {% endif %}
+                  </div>
                 </div>
               </div>
             </div>
