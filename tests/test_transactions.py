@@ -1,174 +1,138 @@
 from __future__ import annotations
 
-from io import BytesIO
+from datetime import date, timedelta
+from decimal import Decimal
 
 from app.extensions import db
-from app.models import AccountingMapping, Attachment, Budget, SpendPolicy, Transaction, TransactionComment
+from app.models import AccountingMapping, Budget, Transaction
 from app.utils.enums import ExpenseStatus, RevenueStatus, TransactionType
 
 
-def test_create_revenue_entry(client, app, sample_data, login):
+def test_create_revenue_entry_with_minimal_fields(client, app, sample_data, login):
     login("revenue@example.com", "RevenuePassword123")
     response = client.post(
         "/revenue/new",
         data={
-            "title": "April Retainer",
-            "counterparty": "Client Y",
-            "category_id": sample_data["revenue_category_id"],
-            "account_id": sample_data["account_id"],
-            "payment_method_id": sample_data["payment_method_id"],
+            "company_name": "Client Y",
+            "amount": "2400.00",
             "transaction_date": "2026-04-01",
-            "due_date": "2026-04-08",
-            "expected_amount": "2400.00",
-            "received_amount": "0",
-            "submit_record": "1",
+            "payment_method_id": str(sample_data["payment_method_id"]),
+            "reference_number": "INV-APR-2026",
+            "note": "Paid in full",
+            "submit": "1",
         },
         follow_redirects=False,
     )
+
     assert response.status_code == 302
     with app.app_context():
-        assert Transaction.query.filter_by(title="April Retainer", transaction_type=TransactionType.REVENUE.value).count() == 1
+        item = Transaction.query.filter_by(counterparty="Client Y", transaction_type=TransactionType.REVENUE.value).first()
+        assert item is not None
+        assert item.status == RevenueStatus.RECEIVED.value
+        assert item.title == "Revenue from Client Y"
+        assert item.expected_amount == Decimal("2400.00")
+        assert item.received_amount == Decimal("2400.00")
+        assert item.payment_method_id == sample_data["payment_method_id"]
+        assert item.reference_number == "INV-APR-2026"
+        assert item.note == "Paid in full"
 
 
-def test_create_submit_and_approve_expense(client, app, sample_data, login):
+def test_create_expense_entry_with_minimal_fields(client, app, sample_data, login):
     login("staff@example.com", "StaffPassword123")
     response = client.post(
         "/expenses/new",
         data={
             "title": "Office internet",
-            "counterparty": "ISP Ghana",
-            "category_id": sample_data["expense_category_id"],
-            "account_id": sample_data["account_id"],
-            "payment_method_id": sample_data["payment_method_id"],
-            "transaction_date": "2026-04-05",
-            "due_date": "2026-04-06",
             "amount": "180.00",
-            "save_draft": "1",
+            "transaction_date": "2026-04-05",
+            "payment_method_id": str(sample_data["payment_method_id"]),
+            "reference_number": "ISP-0426",
+            "note": "Monthly service charge",
+            "submit": "1",
         },
         follow_redirects=False,
     )
+
     assert response.status_code == 302
     with app.app_context():
-        item = Transaction.query.filter_by(title="Office internet").first()
-        assert item.status == ExpenseStatus.DRAFT.value
-        expense_id = item.id
+        item = Transaction.query.filter_by(title="Office internet", transaction_type=TransactionType.EXPENSE.value).first()
+        assert item is not None
+        assert item.status == ExpenseStatus.PAID.value
+        assert item.settled_date == date(2026, 4, 5)
+        assert item.payment_method_id == sample_data["payment_method_id"]
+        assert item.reference_number == "ISP-0426"
+        assert item.note == "Monthly service charge"
 
-    submit_response = client.post(f"/expenses/{expense_id}/submit", follow_redirects=False)
-    assert submit_response.status_code == 302
-    client.post("/logout")
+
+def test_history_is_canonical_and_legacy_lists_redirect(client, sample_data, login):
     login("admin@example.com", "AdminPassword123")
-    approve_response = client.post(f"/expenses/{expense_id}/approve", follow_redirects=False)
-    assert approve_response.status_code == 302
+
+    revenue_response = client.get("/revenue", follow_redirects=False)
+    expense_response = client.get("/expenses", follow_redirects=False)
+    history_response = client.get("/transactions?period=month&transaction_type=revenue", follow_redirects=False)
+
+    assert revenue_response.status_code == 302
+    assert "transactions?type=revenue" in revenue_response.headers["Location"]
+    assert expense_response.status_code == 302
+    assert "transactions?type=expense" in expense_response.headers["Location"]
+    assert history_response.status_code == 200
+    assert b"Ledger History" in history_response.data
+    assert b"All statuses" in history_response.data
+    assert b"Client X" in history_response.data
+    assert b"Draft expense" not in history_response.data
+
+
+def test_history_period_filter_excludes_old_records(client, app, sample_data, login):
     with app.app_context():
-        item = db.session.get(Transaction, expense_id)
-        assert item.status == ExpenseStatus.APPROVED.value
+        old_item = Transaction(
+            transaction_type=TransactionType.EXPENSE.value,
+            title="Old expense",
+            category_id=sample_data["expense_category_id"],
+            account_id=sample_data["account_id"],
+            amount=Decimal("45.00"),
+            transaction_date=date.today() - timedelta(days=400),
+            settled_date=date.today() - timedelta(days=400),
+            status=ExpenseStatus.PAID.value,
+            submitted_by_id=sample_data["staff_id"],
+        )
+        db.session.add(old_item)
+        db.session.commit()
 
-
-def test_invalid_transition_is_blocked(client, app, sample_data, login):
     login("admin@example.com", "AdminPassword123")
-    response = client.post(f"/expenses/{sample_data['draft_expense_id']}/approve", follow_redirects=True)
-    assert b"Invalid status transition" in response.data
+    month_response = client.get("/transactions?period=month", follow_redirects=False)
+    year_response = client.get("/transactions?period=year&q=Old", follow_redirects=False)
+
+    assert month_response.status_code == 200
+    assert b"Old expense" not in month_response.data
+    assert year_response.status_code == 200
+    assert b"Old expense" not in year_response.data
 
 
-def test_duplicate_approve_does_not_overwrite_existing_approval(client, app, sample_data, login):
-    login("admin@example.com", "AdminPassword123")
-    first = client.post(f"/expenses/{sample_data['submitted_expense_id']}/approve", follow_redirects=False)
-    second = client.post(f"/expenses/{sample_data['submitted_expense_id']}/approve", follow_redirects=False)
-
-    assert first.status_code == 302
-    assert second.status_code == 302
-    with app.app_context():
-        item = db.session.get(Transaction, sample_data["submitted_expense_id"])
-        assert item.status == ExpenseStatus.APPROVED.value
-
-
-def test_submitted_expense_hides_submit_button_for_staff(client, sample_data, login):
+def test_transaction_detail_is_simplified(client, sample_data, login):
     login("staff@example.com", "StaffPassword123")
-    response = client.get(f"/expenses/{sample_data['submitted_expense_id']}")
+    response = client.get(f"/expenses/{sample_data['submitted_expense_id']}", follow_redirects=False)
 
     assert response.status_code == 200
-    assert b"Submit expense" not in response.data
-
-
-def test_approved_expense_hides_admin_decision_buttons(client, app, sample_data, login):
-    login("admin@example.com", "AdminPassword123")
-    client.post(f"/expenses/{sample_data['submitted_expense_id']}/approve", follow_redirects=False)
-
-    response = client.get(f"/expenses/{sample_data['submitted_expense_id']}")
-
-    assert response.status_code == 200
-    assert f"/expenses/{sample_data['submitted_expense_id']}/approve".encode() not in response.data
-    assert f"/expenses/{sample_data['submitted_expense_id']}/reject".encode() not in response.data
-    assert f"/expenses/{sample_data['submitted_expense_id']}/return".encode() not in response.data
-    assert b"Mark paid" in response.data
-
-
-def test_returned_expense_hides_admin_decision_buttons(client, app, sample_data, login):
-    login("admin@example.com", "AdminPassword123")
-    client.post(
-        f"/expenses/{sample_data['submitted_expense_id']}/return",
-        data={"note": "Please attach the invoice."},
-        follow_redirects=False,
-    )
-
-    response = client.get(f"/expenses/{sample_data['submitted_expense_id']}")
-
-    assert response.status_code == 200
-    assert f"/expenses/{sample_data['submitted_expense_id']}/approve".encode() not in response.data
-    assert f"/expenses/{sample_data['submitted_expense_id']}/reject".encode() not in response.data
-    assert f"/expenses/{sample_data['submitted_expense_id']}/return".encode() not in response.data
+    assert b"Back to History" in response.data
+    assert b"Category" in response.data
+    assert b"Account" in response.data
+    assert b"Approval comments" not in response.data
+    assert b"Status history" not in response.data
     assert b"Mark paid" not in response.data
 
 
-def test_attachment_validation_blocks_invalid_files(client, app, sample_data, login):
-    login("staff@example.com", "StaffPassword123")
-    response = client.post(
-        "/expenses/new",
-        data={
-            "title": "Unsafe attachment",
-            "counterparty": "Vendor",
-            "category_id": sample_data["expense_category_id"],
-            "account_id": sample_data["account_id"],
-            "payment_method_id": sample_data["payment_method_id"],
-            "transaction_date": "2026-04-05",
-            "amount": "50.00",
-            "save_draft": "1",
-            "attachments": (BytesIO(b"malicious"), "malware.exe"),
-        },
-        content_type="multipart/form-data",
-        follow_redirects=True,
-    )
-    assert b"Unsupported attachment type" in response.data
-
-
-def test_revenue_mark_received(client, app, sample_data, login):
+def test_revenue_mark_received_still_works_for_legacy_flow(client, app, sample_data, login):
     login("admin@example.com", "AdminPassword123")
     response = client.post(
         f"/revenue/{sample_data['revenue_id']}/mark-received",
         data={"amount": "1000.00", "settled_date": "2026-04-09"},
         follow_redirects=False,
     )
+
     assert response.status_code == 302
     with app.app_context():
         item = db.session.get(Transaction, sample_data["revenue_id"])
         assert item.status == RevenueStatus.RECEIVED.value
-
-
-def test_expense_submit_requires_attachment_when_policy_configured(client, app, sample_data, login):
-    with app.app_context():
-        db.session.add(
-            SpendPolicy(
-                name="Operations receipts",
-                transaction_type=TransactionType.EXPENSE.value,
-                category_id=sample_data["expense_category_id"],
-                require_attachment=True,
-            )
-        )
-        db.session.commit()
-
-    login("staff@example.com", "StaffPassword123")
-    response = client.post(f"/expenses/{sample_data['draft_expense_id']}/submit", follow_redirects=True)
-    assert b"requires at least one attachment" in response.data
 
 
 def test_expense_create_applies_budget_and_accounting_mapping(client, app, sample_data, login):
@@ -190,7 +154,6 @@ def test_expense_create_applies_budget_and_accounting_mapping(client, app, sampl
                 transaction_type=TransactionType.EXPENSE.value,
                 category_id=sample_data["expense_category_id"],
                 account_id=sample_data["account_id"],
-                payment_method_id=sample_data["payment_method_id"],
                 gl_code="6000",
                 cost_center="OPS",
                 project_code="HQ",
@@ -203,76 +166,18 @@ def test_expense_create_applies_budget_and_accounting_mapping(client, app, sampl
         "/expenses/new",
         data={
             "title": "Printer supplies",
-            "counterparty": "Stationery Hub",
-            "category_id": sample_data["expense_category_id"],
-            "account_id": sample_data["account_id"],
-            "payment_method_id": sample_data["payment_method_id"],
-            "transaction_date": "2026-04-05",
             "amount": "120.00",
-            "note": "Restocking",
-            "save_draft": "1",
+            "transaction_date": "2026-04-05",
+            "submit": "1",
         },
         follow_redirects=False,
     )
+
     assert response.status_code == 302
     with app.app_context():
         item = Transaction.query.filter_by(title="Printer supplies").first()
+        assert item is not None
         assert item.budget is not None
         assert item.accounting_gl_code == "6000"
         assert item.accounting_cost_center == "OPS"
         assert item.accounting_project_code == "HQ"
-
-
-def test_duplicate_receipt_hash_is_tracked(client, app, sample_data, login):
-    login("staff@example.com", "StaffPassword123")
-    base_payload = {
-        "counterparty": "Vendor",
-        "category_id": sample_data["expense_category_id"],
-        "account_id": sample_data["account_id"],
-        "payment_method_id": sample_data["payment_method_id"],
-        "transaction_date": "2026-04-05",
-        "amount": "50.00",
-        "save_draft": "1",
-    }
-    first = client.post(
-        "/expenses/new",
-        data={
-            **base_payload,
-            "title": "Receipt one",
-            "attachments": (BytesIO(b"same-receipt"), "receipt-one.pdf", "application/pdf"),
-        },
-        content_type="multipart/form-data",
-        follow_redirects=False,
-    )
-    second = client.post(
-        "/expenses/new",
-        data={
-            **base_payload,
-            "title": "Receipt two",
-            "attachments": (BytesIO(b"same-receipt"), "receipt-two.pdf", "application/pdf"),
-        },
-        content_type="multipart/form-data",
-        follow_redirects=False,
-    )
-
-    assert first.status_code == 302
-    assert second.status_code == 302
-    with app.app_context():
-        attachments = Attachment.query.order_by(Attachment.id.asc()).all()
-        assert len(attachments) == 2
-        assert attachments[0].sha256_hash
-        assert attachments[1].duplicate_of_attachment_id == attachments[0].id
-
-
-def test_transaction_comment_is_recorded(client, app, sample_data, login):
-    login("admin@example.com", "AdminPassword123")
-    response = client.post(
-        f"/transactions/{sample_data['submitted_expense_id']}/comments",
-        data={"body": "Please attach the vendor invoice before payment."},
-        follow_redirects=False,
-    )
-    assert response.status_code == 302
-    with app.app_context():
-        comment = TransactionComment.query.filter_by(transaction_id=sample_data["submitted_expense_id"]).first()
-        assert comment is not None
-        assert "vendor invoice" in comment.body

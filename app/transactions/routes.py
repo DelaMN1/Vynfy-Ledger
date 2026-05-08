@@ -1,18 +1,32 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from flask import Blueprint, Response, flash, g, redirect, render_template, request, url_for
 
 from app.extensions import db
-from app.transactions.forms import DeleteDraftForm, ExpenseActionForm, ExpenseForm, RevenueForm, SettlementForm, TransactionCommentForm, TransactionFilterForm
+from app.transactions.forms import (
+    DeleteDraftForm,
+    ExpenseActionForm,
+    ExpenseEntryForm,
+    ExpenseForm,
+    HistoryFilterForm,
+    RevenueEntryForm,
+    RevenueForm,
+    SettlementForm,
+    TransactionCommentForm,
+    TransactionFilterForm,
+)
 from app.transactions.services import (
     add_transaction_comment,
     approve_expense,
     assign_filter_choices,
     assign_form_choices,
+    assign_simple_entry_choices,
     can_edit_transaction,
     create_transaction_from_form,
+    create_simple_expense,
+    create_simple_revenue,
     expense_action_state,
     export_transactions_csv,
     get_transaction_or_404,
@@ -34,6 +48,42 @@ from app.utils.types import TransactionFilters
 transactions_bp = Blueprint("transactions", __name__)
 
 
+def _history_period() -> str:
+    period = request.args.get("period", "month")
+    return period if period in {"week", "month", "year"} else "month"
+
+
+def _history_type() -> str | None:
+    transaction_type = request.args.get("transaction_type") or request.args.get("type")
+    return transaction_type if transaction_type in {TransactionType.REVENUE.value, TransactionType.EXPENSE.value} else None
+
+
+def _period_bounds(period: str) -> tuple[date, date]:
+    today = date.today()
+    if period == "week":
+        start = today - timedelta(days=today.weekday())
+        end = start + timedelta(days=6)
+        return start, end
+    if period == "year":
+        return today.replace(month=1, day=1), today.replace(month=12, day=31)
+    month_start = today.replace(day=1)
+    if today.month == 12:
+        next_month = date(today.year + 1, 1, 1)
+    else:
+        next_month = date(today.year, today.month + 1, 1)
+    return month_start, next_month - timedelta(days=1)
+
+
+def _history_filters() -> TransactionFilters:
+    start_date, end_date = _period_bounds(_history_period())
+    return TransactionFilters(
+        q=request.args.get("q") or None,
+        status=request.args.get("status") or None,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
 def _filters() -> TransactionFilters:
     return TransactionFilters(
         q=request.args.get("q") or None,
@@ -46,18 +96,27 @@ def _filters() -> TransactionFilters:
     )
 
 
-def _render_list(transaction_type: str | None = None) -> str:
-    form = TransactionFilterForm(formdata=request.args)
-    assign_filter_choices(form, user=g.current_user, transaction_type=transaction_type)
-    pagination = list_transactions(user=g.current_user, transaction_type=transaction_type, filters=_filters())
-    page_title = "Transactions" if transaction_type is None else ("Revenue" if transaction_type == TransactionType.REVENUE.value else "Expenses")
-    return render_template("transactions/list.html", page_title=page_title, pagination=pagination, filter_form=form, transaction_type=transaction_type)
+def _render_history() -> str:
+    form = HistoryFilterForm(formdata=request.args)
+    if not form.period.data:
+        form.period.data = _history_period()
+    selected_type = _history_type()
+    form.transaction_type.data = selected_type or ""
+    pagination = list_transactions(user=g.current_user, transaction_type=selected_type, filters=_history_filters())
+    return render_template(
+        "transactions/list.html",
+        page_title="History",
+        pagination=pagination,
+        filter_form=form,
+        selected_period=_history_period(),
+        selected_type=selected_type,
+    )
 
 
 @transactions_bp.get("/revenue")
 @login_required
 def revenue_list():
-    return _render_list(TransactionType.REVENUE.value)
+    return redirect(url_for("transactions.transactions_list", type=TransactionType.REVENUE.value, period=_history_period(), q=request.args.get("q")))
 
 
 @transactions_bp.route("/revenue/new", methods=["GET", "POST"])
@@ -65,19 +124,27 @@ def revenue_list():
 def revenue_new():
     if not (g.current_user.is_admin or g.current_user.can_create_revenue):
         flash("You do not have permission to create revenue entries.", "error")
-        return redirect(url_for("transactions.revenue_list"))
-    form = RevenueForm()
-    assign_form_choices(form, TransactionType.REVENUE.value)
+        return redirect(url_for("transactions.transactions_list"))
+    form = RevenueEntryForm()
+    assign_simple_entry_choices(form)
     if form.validate_on_submit():
         try:
-            item = create_transaction_from_form(form=form, transaction_type=TransactionType.REVENUE.value, actor=g.current_user)
+            create_simple_revenue(
+                company_name=form.company_name.data,
+                amount=form.amount.data,
+                transaction_date=form.transaction_date.data,
+                payment_method_id=form.payment_method_id.data,
+                reference_number=form.reference_number.data,
+                note=form.note.data,
+                actor=g.current_user,
+            )
             db.session.commit()
-            flash("Revenue entry saved.", "success")
-            return redirect(url_for("transactions.revenue_detail", transaction_id=item.id))
+            flash("Revenue saved.", "success")
+            return redirect(url_for("transactions.transactions_list", period="month"))
         except ValueError as exc:
             db.session.rollback()
             flash(str(exc), "error")
-    return render_template("transactions/form.html", form=form, transaction=None, page_title="New Revenue", transaction_type=TransactionType.REVENUE.value)
+    return render_template("transactions/simple_form.html", form=form, entry_type=TransactionType.REVENUE.value, page_title="Add Revenue")
 
 
 @transactions_bp.get("/revenue/<int:transaction_id>")
@@ -134,24 +201,32 @@ def revenue_mark_received(transaction_id: int):
 @transactions_bp.get("/expenses")
 @login_required
 def expense_list():
-    return _render_list(TransactionType.EXPENSE.value)
+    return redirect(url_for("transactions.transactions_list", type=TransactionType.EXPENSE.value, period=_history_period(), q=request.args.get("q")))
 
 
 @transactions_bp.route("/expenses/new", methods=["GET", "POST"])
 @login_required
 def expense_new():
-    form = ExpenseForm()
-    assign_form_choices(form, TransactionType.EXPENSE.value)
+    form = ExpenseEntryForm()
+    assign_simple_entry_choices(form)
     if form.validate_on_submit():
         try:
-            item = create_transaction_from_form(form=form, transaction_type=TransactionType.EXPENSE.value, actor=g.current_user)
+            create_simple_expense(
+                title=form.title.data,
+                amount=form.amount.data,
+                transaction_date=form.transaction_date.data,
+                payment_method_id=form.payment_method_id.data,
+                reference_number=form.reference_number.data,
+                note=form.note.data,
+                actor=g.current_user,
+            )
             db.session.commit()
             flash("Expense saved.", "success")
-            return redirect(url_for("transactions.expense_detail", transaction_id=item.id))
+            return redirect(url_for("transactions.transactions_list", period="month"))
         except ValueError as exc:
             db.session.rollback()
             flash(str(exc), "error")
-    return render_template("transactions/form.html", form=form, transaction=None, page_title="New Expense", transaction_type=TransactionType.EXPENSE.value)
+    return render_template("transactions/simple_form.html", form=form, entry_type=TransactionType.EXPENSE.value, page_title="Add Expense")
 
 
 @transactions_bp.get("/expenses/<int:transaction_id>")
@@ -268,7 +343,7 @@ def expense_mark_paid(transaction_id: int):
 @transactions_bp.get("/transactions")
 @login_required
 def transactions_list():
-    return _render_list()
+    return _render_history()
 
 
 @transactions_bp.get("/transactions/<int:transaction_id>")
@@ -315,7 +390,13 @@ def transaction_delete(transaction_id: int):
 @transactions_bp.get("/transactions/export/csv")
 @login_required
 def transactions_export():
-    content = export_transactions_csv(user=g.current_user, transaction_type=request.args.get("type"), filters=_filters())
+    history_mode = request.args.get("period") in {"week", "month", "year"} or _history_type() is not None
+    filters = _history_filters() if history_mode else _filters()
+    content = export_transactions_csv(
+        user=g.current_user,
+        transaction_type=_history_type() if history_mode else request.args.get("type"),
+        filters=filters,
+    )
     return Response(
         content,
         mimetype="text/csv; charset=utf-8",

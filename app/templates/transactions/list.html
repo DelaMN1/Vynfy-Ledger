@@ -1,79 +1,72 @@
 {% extends "base.html" %}
-{% import "partials/filter_toolbar.html" as filter_toolbar %}
 {% block page_title %}{{ page_title }}{% endblock %}
 {% block content %}
   <div class="glass-card field-shell rounded-[2rem] p-6">
-    {% set has_advanced_filters = request.args.get('category_id') or request.args.get('account_id') or request.args.get('owner_id') %}
-    <form class="filter-toolbar-shell" method="get">
-      {{ filter_form.hidden_tag() }}
-      {% call filter_toolbar.row() %}
-        {{ filter_toolbar.field(
-          filter_form.q.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
-          filter_form.q(class="px-4 py-3 text-sm", placeholder="Search title, source, ref"),
-          "filter-toolbar__field--search"
-        ) }}
-        {{ filter_toolbar.field(
-          filter_form.status.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
-          filter_form.status(class="px-4 py-3 text-sm"),
-          "filter-toolbar__field--wide"
-        ) }}
-        {{ filter_toolbar.field(
-          filter_form.start_date.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
-          filter_form.start_date(class="px-4 py-3 text-sm"),
-          "filter-toolbar__field--date"
-        ) }}
-        {{ filter_toolbar.field(
-          filter_form.end_date.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
-          filter_form.end_date(class="px-4 py-3 text-sm"),
-          "filter-toolbar__field--date"
-        ) }}
-        {% call filter_toolbar.actions() %}
-          <button class="action-pill bg-slate-900 text-sm font-medium text-white" type="submit">Apply</button>
-          <a class="action-pill border border-slate-300 text-sm" href="{{ request.path }}">Reset</a>
-        {% endcall %}
-      {% endcall %}
-
-      {% call filter_toolbar.advanced("More Filters", "Category, account, and owner filters", has_advanced_filters) %}
-        {{ filter_toolbar.field(
-          filter_form.category_id.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
-          filter_form.category_id(class="px-4 py-3 text-sm")
-        ) }}
-        {{ filter_toolbar.field(
-          filter_form.account_id.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
-          filter_form.account_id(class="px-4 py-3 text-sm")
-        ) }}
-        {{ filter_toolbar.field(
-          filter_form.owner_id.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
-          filter_form.owner_id(class="px-4 py-3 text-sm")
-        ) }}
-      {% endcall %}
-    </form>
-    <div class="mt-6 flex flex-wrap gap-3">
-      {% if transaction_type == 'revenue' %}
+    <div class="stack-header gap-4">
+      <div class="stack-title">
+        <p class="section-kicker">Ledger History</p>
+        <h3 class="mt-2 text-2xl font-semibold">Revenue and expense records</h3>
+        <p class="mt-2 text-sm text-slate-500">Browse the ledger by period, type, status, and keyword without leaving one screen.</p>
+      </div>
+      <div class="flex flex-wrap gap-3">
         <a class="action-pill bg-emerald-600 text-sm font-medium text-white" href="{{ url_for('transactions.revenue_new') }}">Add Revenue</a>
-      {% elif transaction_type == 'expense' %}
-        <a class="action-pill bg-rose-600 text-sm font-medium text-white" href="{{ url_for('transactions.expense_new') }}">New Expense</a>
-      {% endif %}
-      <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('transactions.transactions_export', type=transaction_type) }}">Export CSV</a>
+        <a class="action-pill bg-rose-600 text-sm font-medium text-white" href="{{ url_for('transactions.expense_new') }}">Add Expense</a>
+        <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('transactions.transactions_export', type=selected_type, period=selected_period, status=request.args.get('status'), q=request.args.get('q')) }}">Export CSV</a>
+      </div>
     </div>
+    <div class="mt-5 flex flex-wrap gap-3">
+      <a class="action-pill {{ 'bg-slate-900 text-white' if selected_period == 'week' else 'border border-slate-300 text-slate-700' }}" href="{{ url_for('transactions.transactions_list', period='week', transaction_type=selected_type, status=request.args.get('status'), q=request.args.get('q')) }}">This week</a>
+      <a class="action-pill {{ 'bg-slate-900 text-white' if selected_period == 'month' else 'border border-slate-300 text-slate-700' }}" href="{{ url_for('transactions.transactions_list', period='month', transaction_type=selected_type, status=request.args.get('status'), q=request.args.get('q')) }}">This month</a>
+      <a class="action-pill {{ 'bg-slate-900 text-white' if selected_period == 'year' else 'border border-slate-300 text-slate-700' }}" href="{{ url_for('transactions.transactions_list', period='year', transaction_type=selected_type, status=request.args.get('status'), q=request.args.get('q')) }}">This year</a>
+      <div class="count-pill bg-slate-100 text-sm text-slate-600">{{ pagination.total }} record{{ '' if pagination.total == 1 else 's' }}</div>
+    </div>
+    <form class="mt-6 grid gap-4 md:grid-cols-[0.8fr_0.8fr_1fr_1.3fr_auto] md:items-end" method="get">
+      {{ filter_form.hidden_tag() }}
+      <div>
+        {{ filter_form.period.label(class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500") }}
+        {{ filter_form.period(class="w-full px-4 py-3 text-sm") }}
+      </div>
+      <div>
+        {{ filter_form.transaction_type.label(class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500") }}
+        {{ filter_form.transaction_type(class="w-full px-4 py-3 text-sm") }}
+      </div>
+      <div>
+        {{ filter_form.status.label(class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500") }}
+        {{ filter_form.status(class="w-full px-4 py-3 text-sm") }}
+      </div>
+      <div>
+        {{ filter_form.q.label(class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500") }}
+        {{ filter_form.q(class="w-full px-4 py-3 text-sm", placeholder="Search company name or expense description") }}
+      </div>
+      <div class="flex gap-3">
+        <button class="action-pill bg-slate-900 text-sm font-medium text-white" type="submit">Apply</button>
+        <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('transactions.transactions_list') }}">Reset</a>
+      </div>
+    </form>
     <div class="mt-6 overflow-x-auto">
       <table class="min-w-full text-sm">
         <thead class="text-left text-slate-500">
-          <tr><th class="pb-3">Title</th><th class="pb-3">Counterparty</th><th class="pb-3">Date</th><th class="pb-3">Amount</th><th class="pb-3">Owner</th><th class="pb-3">Status</th></tr>
+          <tr><th class="pb-3">Entry</th><th class="pb-3">Type</th><th class="pb-3">Category</th><th class="pb-3">Date</th><th class="pb-3">Amount</th><th class="pb-3">Recorded by</th><th class="pb-3">Status</th></tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
           {% for item in pagination.items %}
             {% set status = item.status %}
             <tr class="cursor-pointer hover:bg-slate-50" data-row-link="{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}" tabindex="0" role="link">
-              <td class="py-4">{{ item.title }}</td>
-              <td class="py-4">{{ item.counterparty or "-" }}</td>
+              <td class="py-4">
+                <div class="font-medium text-break">{{ item.counterparty or item.title }}</div>
+                {% if item.counterparty and item.title %}
+                  <div class="mt-1 text-xs text-slate-500 text-break">{{ item.title }}</div>
+                {% endif %}
+              </td>
+              <td class="py-4 capitalize">{{ item.transaction_type }}</td>
+              <td class="py-4 text-break">{{ item.category.name if item.category else '-' }}</td>
               <td class="py-4">{{ item.transaction_date.strftime('%d %b %Y') }}</td>
               <td class="py-4">{{ item.amount|currency }}</td>
               <td class="py-4">{{ item.submitted_by.full_name }}</td>
               <td class="py-4">{% include "partials/status_badge.html" %}</td>
             </tr>
           {% else %}
-            <tr><td class="py-8 text-slate-500" colspan="6">No records match the current filters.</td></tr>
+            <tr><td class="py-8 text-slate-500" colspan="7">No records match the current filters.</td></tr>
           {% endfor %}
         </tbody>
       </table>

@@ -75,9 +75,28 @@ def _active_payment_methods() -> ChoiceOptions:
     return _choices_from_items(items, placeholder=(0, "Select payment method"))
 
 
+def _resolve_default_category_id(transaction_type: str) -> int:
+    item = Category.query.filter_by(type=transaction_type, is_active=True).order_by(Category.name.asc(), Category.id.asc()).first()
+    if not item:
+        label = "revenue" if transaction_type == TransactionType.REVENUE.value else "expense"
+        raise ServiceError(f"No active {label} category is configured.")
+    return int(item.id)
+
+
+def _resolve_default_account_id() -> int:
+    item = Account.query.filter_by(is_active=True).order_by(Account.name.asc(), Account.id.asc()).first()
+    if not item:
+        raise ServiceError("No active account is configured.")
+    return int(item.id)
+
+
 def assign_form_choices(form: TransactionChoiceForm, transaction_type: str) -> None:
     form.category_id.choices = _active_categories(transaction_type)
     form.account_id.choices = _active_accounts()
+    form.payment_method_id.choices = _active_payment_methods()
+
+
+def assign_simple_entry_choices(form) -> None:
     form.payment_method_id.choices = _active_payment_methods()
 
 
@@ -548,6 +567,91 @@ def create_transaction_from_form(*, form: TransactionFormLike, transaction_type:
             "over_budget": bool(budget_snapshot and budget_snapshot["over_budget"]),
         },
     )
+    record_audit(user_id=actor.id, entity_type="transaction", entity_id=item.id, action="create", new_values=_serialize(item))
+    return item
+
+
+def create_simple_revenue(
+    *,
+    company_name: str,
+    amount: Decimal,
+    transaction_date: date,
+    payment_method_id: int | None,
+    reference_number: str | None,
+    note: str | None,
+    actor: User,
+) -> Transaction:
+    normalized_company = _normalize_optional_text(company_name)
+    if not normalized_company:
+        raise ServiceError("Company name is required.")
+
+    resolved_amount = Decimal(amount)
+    if resolved_amount <= 0:
+        raise ServiceError("Amount must be greater than zero.")
+
+    item = Transaction(
+        transaction_type=TransactionType.REVENUE.value,
+        title=f"Revenue from {normalized_company}"[:160],
+        counterparty=normalized_company,
+        category_id=_resolve_default_category_id(TransactionType.REVENUE.value),
+        account_id=_resolve_default_account_id(),
+        payment_method_id=payment_method_id or None,
+        amount=resolved_amount,
+        expected_amount=resolved_amount,
+        received_amount=resolved_amount,
+        transaction_date=transaction_date,
+        settled_date=transaction_date,
+        reference_number=_normalize_optional_text(reference_number),
+        note=_normalize_optional_text(note),
+        status=RevenueStatus.RECEIVED.value,
+        submitted_by_id=actor.id,
+    )
+    db.session.add(item)
+    db.session.flush()
+    _apply_transaction_controls(item, strict=False)
+    _sync_account_balance(item.account_id)
+    _record_history(item, actor=actor, action="create", to_status=item.status)
+    record_audit(user_id=actor.id, entity_type="transaction", entity_id=item.id, action="create", new_values=_serialize(item))
+    return item
+
+
+def create_simple_expense(
+    *,
+    title: str,
+    amount: Decimal,
+    transaction_date: date,
+    payment_method_id: int | None,
+    reference_number: str | None,
+    note: str | None,
+    actor: User,
+) -> Transaction:
+    normalized_title = _normalize_optional_text(title)
+    if not normalized_title:
+        raise ServiceError("Expense description is required.")
+
+    resolved_amount = Decimal(amount)
+    if resolved_amount <= 0:
+        raise ServiceError("Amount must be greater than zero.")
+
+    item = Transaction(
+        transaction_type=TransactionType.EXPENSE.value,
+        title=normalized_title[:160],
+        category_id=_resolve_default_category_id(TransactionType.EXPENSE.value),
+        account_id=_resolve_default_account_id(),
+        payment_method_id=payment_method_id or None,
+        amount=resolved_amount,
+        transaction_date=transaction_date,
+        settled_date=transaction_date,
+        reference_number=_normalize_optional_text(reference_number),
+        note=_normalize_optional_text(note),
+        status=ExpenseStatus.PAID.value,
+        submitted_by_id=actor.id,
+    )
+    db.session.add(item)
+    db.session.flush()
+    _apply_transaction_controls(item, strict=False)
+    _sync_account_balance(item.account_id)
+    _record_history(item, actor=actor, action="create", to_status=item.status)
     record_audit(user_id=actor.id, entity_type="transaction", entity_id=item.id, action="create", new_values=_serialize(item))
     return item
 

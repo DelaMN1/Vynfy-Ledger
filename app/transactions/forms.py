@@ -5,7 +5,7 @@ from flask_wtf.file import MultipleFileField
 from wtforms import BooleanField, DateField, DecimalField, HiddenField, SelectField, StringField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length, NumberRange, Optional
 
-from app.utils.enums import ExpenseStatus, RevenueStatus, choices
+from app.utils.enums import TRANSACTION_STATUS_VALUES, ExpenseStatus, RevenueStatus, choices
 
 
 class BaseTransactionForm(FlaskForm):
@@ -37,6 +37,26 @@ class ExpenseForm(BaseTransactionForm):
     status = SelectField("Status", choices=choices(ExpenseStatus), validators=[Optional()])
 
 
+class RevenueEntryForm(FlaskForm):
+    company_name = StringField("Company name", validators=[DataRequired(), Length(max=160)])
+    amount = DecimalField("Amount", validators=[DataRequired(), NumberRange(min=0.01)], places=2)
+    transaction_date = DateField("Date", validators=[DataRequired()])
+    payment_method_id = SelectField("Payment method", coerce=int, validators=[Optional()], default=0)
+    reference_number = StringField("Reference", validators=[Optional(), Length(max=100)])
+    note = TextAreaField("Note", validators=[Optional(), Length(max=2000)])
+    submit = SubmitField("Save revenue")
+
+
+class ExpenseEntryForm(FlaskForm):
+    title = StringField("What the expense was about", validators=[DataRequired(), Length(max=160)])
+    amount = DecimalField("Amount", validators=[DataRequired(), NumberRange(min=0.01)], places=2)
+    transaction_date = DateField("Date", validators=[DataRequired()])
+    payment_method_id = SelectField("Payment method", coerce=int, validators=[Optional()], default=0)
+    reference_number = StringField("Reference", validators=[Optional(), Length(max=100)])
+    note = TextAreaField("Note", validators=[Optional(), Length(max=2000)])
+    submit = SubmitField("Save expense")
+
+
 class ExpenseActionForm(FlaskForm):
     note = TextAreaField("Note", validators=[Optional(), Length(max=1000)])
     submit = SubmitField("Save")
@@ -66,3 +86,33 @@ class TransactionFilterForm(FlaskForm):
     start_date = DateField("From", validators=[Optional()])
     end_date = DateField("To", validators=[Optional()])
     transaction_type = HiddenField()
+
+
+class HistoryFilterForm(FlaskForm):
+    period = SelectField(
+        "Period",
+        choices=[
+            ("week", "This week"),
+            ("month", "This month"),
+            ("year", "This year"),
+        ],
+        default="month",
+        validators=[DataRequired()],
+    )
+    transaction_type = SelectField(
+        "Type",
+        choices=[
+            ("", "All entries"),
+            ("revenue", "Revenue"),
+            ("expense", "Expenses"),
+        ],
+        default="",
+        validators=[Optional()],
+    )
+    status = SelectField(
+        "Status",
+        choices=[("", "All statuses")] + [(value, value) for value in sorted(set().union(*TRANSACTION_STATUS_VALUES.values()))],
+        default="",
+        validators=[Optional()],
+    )
+    q = StringField("Search", validators=[Optional(), Length(max=120)])

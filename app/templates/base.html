@@ -20,14 +20,12 @@
           </div>
           <nav class="mt-10 space-y-2 text-sm">
             <a class="sidebar-link {{ 'is-active' if request.endpoint == 'dashboard.overview' else '' }}" href="{{ url_for('dashboard.overview') }}">Dashboard</a>
-            <a class="sidebar-link {{ 'is-active' if request.endpoint in ['transactions.revenue_list', 'transactions.revenue_new', 'transactions.revenue_detail', 'transactions.revenue_edit'] else '' }}" href="{{ url_for('transactions.revenue_list') }}">Revenue</a>
-            <a class="sidebar-link {{ 'is-active' if request.endpoint in ['transactions.expense_list', 'transactions.expense_new', 'transactions.expense_detail', 'transactions.expense_edit'] else '' }}" href="{{ url_for('transactions.expense_list') }}">Expenses</a>
-            <a class="sidebar-link {{ 'is-active' if request.endpoint in ['transactions.transactions_list', 'transactions.transaction_detail'] else '' }}" href="{{ url_for('transactions.transactions_list') }}">Transactions</a>
-            <a class="sidebar-link {{ 'is-active' if request.endpoint == 'reports.index' else '' }}" href="{{ url_for('reports.index') }}">Reports</a>
-            <a class="sidebar-link {{ 'is-active' if request.endpoint in ['reconciliation.index', 'reconciliation.start', 'reconciliation.finalize'] else '' }}" href="{{ url_for('reconciliation.index') }}">Reconciliation</a>
+            <a class="sidebar-link {{ 'is-active' if request.endpoint in ['transactions.revenue_new', 'transactions.revenue_detail', 'transactions.revenue_edit'] else '' }}" href="{{ url_for('transactions.revenue_new') }}">Add Revenue</a>
+            <a class="sidebar-link {{ 'is-active' if request.endpoint in ['transactions.expense_new', 'transactions.expense_detail', 'transactions.expense_edit'] else '' }}" href="{{ url_for('transactions.expense_new') }}">Add Expense</a>
+            <a class="sidebar-link {{ 'is-active' if request.endpoint in ['transactions.transactions_list', 'transactions.transaction_detail', 'transactions.revenue_list', 'transactions.expense_list'] else '' }}" href="{{ url_for('transactions.transactions_list') }}">History</a>
             {% if current_user.is_admin %}
-              <a class="sidebar-link {{ 'is-active' if request.endpoint and request.endpoint.startswith('settings.') else '' }}" href="{{ url_for('settings.categories') }}">Settings</a>
-              <a class="sidebar-link {{ 'is-active' if request.endpoint == 'admin.approvals' else '' }}" href="{{ url_for('admin.approvals') }}">Pending Approvals</a>
+              <a class="sidebar-link {{ 'is-active' if request.endpoint == 'settings.accounts' else '' }}" href="{{ url_for('settings.accounts') }}">Accounts</a>
+              <a class="sidebar-link {{ 'is-active' if request.endpoint == 'settings.users' else '' }}" href="{{ url_for('settings.users') }}">Users</a>
             {% endif %}
           </nav>
         </aside>
@@ -35,8 +33,7 @@
           <header class="shell-header border-b border-white/50 px-6 py-4">
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <p class="text-xs uppercase tracking-[0.3em] text-slate-500">{% block eyebrow %}Operations{% endblock %}</p>
-                <h2 class="mt-1 text-3xl font-semibold">{% block page_title %}{{ app_name }}{% endblock %}</h2>
+                <h2 class="text-3xl font-semibold">{% block page_title %}{{ app_name }}{% endblock %}</h2>
               </div>
               <div class="flex items-center gap-3">
                 <div class="count-pill border border-white/70 bg-white/70 px-4 py-2 text-sm shadow-sm">

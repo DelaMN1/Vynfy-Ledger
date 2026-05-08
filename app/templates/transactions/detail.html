@@ -1,175 +1,99 @@
 {% extends "base.html" %}
-{% block page_title %}{{ transaction.title }}{% endblock %}
+{% block page_title %}{{ transaction.counterparty or transaction.title }}{% endblock %}
 {% block content %}
   {% set status = transaction.status %}
-  <div class="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-    <div class="space-y-5">
-      <div class="glass-card rounded-[2rem] p-8">
-        <div class="stack-header">
-          <div class="stack-title">
-            <p class="text-sm uppercase tracking-[0.2em] text-slate-500">{{ transaction.transaction_type }}</p>
-            <h3 class="mt-2 text-3xl font-semibold text-break">{{ transaction.title }}</h3>
-            <p class="mt-3 text-slate-600 text-break">{{ transaction.description or "No description provided." }}</p>
-          </div>
-          {% include "partials/status_badge.html" %}
+  <div class="mx-auto max-w-4xl space-y-5">
+    <div class="glass-card rounded-[2rem] p-8">
+      <div class="stack-header gap-4">
+        <div class="stack-title">
+          <p class="text-sm uppercase tracking-[0.2em] text-slate-500">{{ transaction.transaction_type }}</p>
+          <h3 class="mt-2 text-3xl font-semibold text-break">{{ transaction.counterparty or transaction.title }}</h3>
+          {% if transaction.counterparty and transaction.title %}
+            <p class="mt-3 text-sm text-slate-500 text-break">{{ transaction.title }}</p>
+          {% endif %}
         </div>
-        <dl class="mt-8 grid gap-5 md:grid-cols-2">
-          <div><dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Counterparty</dt><dd class="mt-2 text-lg text-break">{{ transaction.counterparty or "-" }}</dd></div>
-          <div><dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Amount</dt><dd class="mt-2 text-lg">{{ transaction.amount|currency }}</dd></div>
-          <div><dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Transaction Date</dt><dd class="mt-2 text-lg">{{ transaction.transaction_date.strftime('%d %b %Y') }}</dd></div>
-          <div><dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Due Date</dt><dd class="mt-2 text-lg">{{ transaction.due_date.strftime('%d %b %Y') if transaction.due_date else "-" }}</dd></div>
-          <div><dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Reference Number</dt><dd class="mt-2 text-lg text-break">{{ transaction.reference_number or "-" }}</dd></div>
-          <div><dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Attachments</dt><dd class="mt-2 text-lg">{{ transaction.attachment_count }}</dd></div>
-        </dl>
-        {% if transaction.note %}
-          <div class="mt-8 rounded-2xl bg-slate-50 p-5">
-            <p class="text-sm font-medium text-slate-500">Internal Note</p>
-            <p class="mt-2 text-slate-700 text-break">{{ transaction.note }}</p>
+        {% include "partials/status_badge.html" %}
+      </div>
+      <dl class="mt-8 grid gap-5 md:grid-cols-2">
+        <div>
+          <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Amount</dt>
+          <dd class="mt-2 text-lg">{{ transaction.amount|currency }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Date</dt>
+          <dd class="mt-2 text-lg">{{ transaction.transaction_date.strftime('%d %b %Y') }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Recorded by</dt>
+          <dd class="mt-2 text-lg text-break">{{ transaction.submitted_by.full_name }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Status</dt>
+          <dd class="mt-2 text-lg">{{ transaction.status }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Category</dt>
+          <dd class="mt-2 text-lg text-break">{{ transaction.category.name if transaction.category else "-" }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Account</dt>
+          <dd class="mt-2 text-lg text-break">{{ transaction.account.name if transaction.account else "-" }}</dd>
+        </div>
+        {% if transaction.counterparty %}
+          <div>
+            <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Company / Counterparty</dt>
+            <dd class="mt-2 text-lg text-break">{{ transaction.counterparty }}</dd>
           </div>
         {% endif %}
-      </div>
-
-      {% if exceptions %}
-        <div class="rounded-[2rem] border border-amber-200 bg-amber-50 p-6">
-          <h3 class="text-lg font-semibold text-amber-900">Attention required</h3>
-          <div class="mt-4 space-y-2 text-sm text-amber-900">
-            {% for message in exceptions %}
-              <p class="text-break">{{ message }}</p>
-            {% endfor %}
+        {% if transaction.payment_method %}
+          <div>
+            <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Payment method</dt>
+            <dd class="mt-2 text-lg text-break">{{ transaction.payment_method.name }}</dd>
           </div>
+        {% endif %}
+        {% if transaction.settled_date %}
+          <div>
+            <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Settled date</dt>
+            <dd class="mt-2 text-lg">{{ transaction.settled_date.strftime('%d %b %Y') }}</dd>
+          </div>
+        {% endif %}
+        {% if transaction.reference_number %}
+          <div>
+            <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Reference</dt>
+            <dd class="mt-2 text-lg text-break">{{ transaction.reference_number }}</dd>
+          </div>
+        {% endif %}
+        {% if transaction.transaction_type == 'revenue' %}
+          <div>
+            <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Expected revenue</dt>
+            <dd class="mt-2 text-lg">{{ (transaction.expected_amount or transaction.amount)|currency }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">Received revenue</dt>
+            <dd class="mt-2 text-lg">{{ (transaction.received_amount or 0)|currency }}</dd>
+          </div>
+        {% endif %}
+      </dl>
+      {% if transaction.description %}
+        <div class="mt-8 rounded-2xl bg-slate-50 p-5">
+          <p class="text-sm font-medium text-slate-500">Description</p>
+          <p class="mt-2 text-slate-700 text-break">{{ transaction.description }}</p>
         </div>
       {% endif %}
-
-      <div class="grid gap-5 lg:grid-cols-3">
-        <div class="glass-card rounded-[1.75rem] p-6">
-          <p class="text-sm text-slate-500">Matched Policy</p>
-          <p class="mt-2 text-xl font-semibold text-break">{{ transaction.spend_policy.name if transaction.spend_policy else "None" }}</p>
-          {% if transaction.spend_policy %}
-            <p class="mt-3 text-sm text-slate-500 text-break">{{ transaction.spend_policy.description or "No extra policy notes." }}</p>
-          {% endif %}
+      {% if transaction.note %}
+        <div class="mt-5 rounded-2xl bg-slate-50 p-5">
+          <p class="text-sm font-medium text-slate-500">Note</p>
+          <p class="mt-2 text-slate-700 text-break">{{ transaction.note }}</p>
         </div>
-        <div class="glass-card rounded-[1.75rem] p-6">
-          <p class="text-sm text-slate-500">Matched Budget</p>
-          <p class="mt-2 text-xl font-semibold text-break">{{ transaction.budget.name if transaction.budget else "None" }}</p>
-          {% if transaction.budget %}
-            <p class="mt-3 text-sm text-slate-500">{{ transaction.budget.amount|currency }} monthly cap</p>
-          {% endif %}
-        </div>
-        <div class="glass-card rounded-[1.75rem] p-6">
-          <p class="text-sm text-slate-500">Accounting Mapping</p>
-          <p class="mt-2 text-xl font-semibold text-break">{{ transaction.accounting_gl_code or "Unmapped" }}</p>
-          <p class="mt-3 text-sm text-slate-500 text-break">{{ transaction.accounting_cost_center or "No cost center" }}{% if transaction.accounting_project_code %} / {{ transaction.accounting_project_code }}{% endif %}</p>
-        </div>
-      </div>
-
-      <div class="glass-card rounded-[2rem] p-6">
-        <div class="stack-header">
-          <h3 class="text-lg font-semibold">Attachments</h3>
-          <span class="count-pill bg-slate-100 text-sm text-slate-500">{{ transaction.attachment_count }} file{{ "" if transaction.attachment_count == 1 else "s" }}</span>
-        </div>
-        <div class="mt-4 space-y-3">
-          {% for attachment in transaction.attachments %}
-            <div class="data-row px-4 py-4">
-              <div class="split-row">
-                <div class="split-row__primary">
-                  <p class="font-medium text-break">{{ attachment.original_filename }}</p>
-                  <p class="mt-1 text-sm text-slate-500 text-break">{{ attachment.mime_type }} / {{ attachment.file_size }} bytes</p>
-                </div>
-                {% if attachment.duplicate_of %}
-                  <span class="status-pill bg-amber-100 text-xs font-medium text-amber-900">Duplicate receipt</span>
-                {% endif %}
-              </div>
-            </div>
-          {% else %}
-            <p class="text-slate-500">No attachments uploaded yet.</p>
-          {% endfor %}
-        </div>
-      </div>
-
-      <div class="grid gap-5 xl:grid-cols-[1fr_0.95fr]">
-        <div class="glass-card rounded-[2rem] p-6">
-          <h3 class="text-lg font-semibold">Approval comments</h3>
-          <form class="mt-4 space-y-3 field-shell" method="post" action="{{ url_for('transactions.transaction_comment', transaction_id=transaction.id) }}">
-            {{ comment_form.hidden_tag() }}
-            {{ comment_form.body(class="w-full px-4 py-3", rows="4", placeholder="Add context, ask a question, or capture an approval note") }}
-            <button class="action-pill bg-slate-900 text-sm text-white" type="submit">Post comment</button>
-          </form>
-          <div class="mt-6 space-y-4">
-            {% for comment in transaction.comments %}
-              <div class="data-row px-4 py-4">
-                <div class="split-row">
-                  <p class="split-row__primary font-medium text-break">{{ comment.user.full_name }}</p>
-                  <p class="split-row__secondary text-xs uppercase tracking-[0.16em] text-slate-400">{{ comment.created_at.strftime('%d %b %Y %H:%M') }}</p>
-                </div>
-                <p class="mt-3 text-sm text-slate-700 text-break">{{ comment.body }}</p>
-              </div>
-            {% else %}
-              <p class="text-slate-500">No comments yet.</p>
-            {% endfor %}
-          </div>
-        </div>
-
-        <div class="glass-card rounded-[2rem] p-6">
-          <h3 class="text-lg font-semibold">Status history</h3>
-          <div class="mt-6 space-y-4">
-            {% for entry in transaction.status_history %}
-              <div class="data-row px-4 py-4">
-                <div class="split-row">
-                  <p class="split-row__primary text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">{{ entry.action|replace('_', ' ') }}</p>
-                  <p class="split-row__secondary text-xs uppercase tracking-[0.16em] text-slate-400">{{ entry.created_at.strftime('%d %b %Y %H:%M') }}</p>
-                </div>
-                <p class="mt-2 text-sm text-slate-700 text-break">{{ entry.from_status or "New" }} -> {{ entry.to_status or transaction.status }}</p>
-                {% if entry.note %}
-                  <p class="mt-2 text-sm text-slate-600 text-break">{{ entry.note }}</p>
-                {% endif %}
-              </div>
-            {% else %}
-              <p class="text-slate-500">No audit history yet.</p>
-            {% endfor %}
-          </div>
-        </div>
-      </div>
+      {% endif %}
     </div>
 
-    <div class="space-y-5">
-      <div class="glass-card rounded-[2rem] p-6">
-        <h3 class="text-lg font-semibold">Actions</h3>
-        <div class="mt-4 flex flex-wrap gap-3">
-          {% if can_edit and transaction.transaction_type == 'revenue' %}
-            <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('transactions.revenue_edit', transaction_id=transaction.id) }}">Edit</a>
-          {% elif can_edit %}
-            <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('transactions.expense_edit', transaction_id=transaction.id) }}">Edit</a>
-          {% endif %}
-        </div>
-        {% if transaction.transaction_type == 'expense' %}
-          {% if action_state.show_submit %}
-            <form class="mt-5" method="post" action="{{ url_for('transactions.expense_submit', transaction_id=transaction.id) }}">{{ settlement_form.csrf_token }}<button class="action-pill bg-slate-900 text-sm text-white" type="submit">Submit expense</button></form>
-          {% endif %}
-          {% if action_state.show_approve %}
-            <form class="mt-3" method="post" action="{{ url_for('transactions.expense_approve', transaction_id=transaction.id) }}">{{ settlement_form.csrf_token }}<button class="action-pill bg-emerald-600 text-sm text-white" type="submit">Approve</button></form>
-          {% endif %}
-          {% if action_state.show_reject %}
-            <form class="mt-3 space-y-3 field-shell" method="post" action="{{ url_for('transactions.expense_reject', transaction_id=transaction.id) }}">{{ action_form.hidden_tag() }}{{ action_form.note(class="w-full px-4 py-3", rows="3", placeholder="Reason for rejection") }}<button class="action-pill bg-rose-600 text-sm text-white" type="submit">Reject</button></form>
-          {% endif %}
-          {% if action_state.show_return %}
-            <form class="mt-3 space-y-3 field-shell" method="post" action="{{ url_for('transactions.expense_return', transaction_id=transaction.id) }}">{{ action_form.hidden_tag() }}{{ action_form.note(class="w-full px-4 py-3", rows="3", placeholder="Reason for return") }}<button class="action-pill bg-amber-600 text-sm text-white" type="submit">Return for edit</button></form>
-          {% endif %}
-          {% if action_state.show_mark_paid %}
-            <form class="mt-3 space-y-3 field-shell" method="post" action="{{ url_for('transactions.expense_mark_paid', transaction_id=transaction.id) }}">{{ settlement_form.hidden_tag() }}{{ settlement_form.settled_date(class="w-full px-4 py-3") }}<button class="action-pill bg-emerald-700 text-sm text-white" type="submit">Mark paid</button></form>
-          {% endif %}
-        {% else %}
-          <form class="mt-3 space-y-3 field-shell" method="post" action="{{ url_for('transactions.revenue_mark_received', transaction_id=transaction.id) }}">{{ settlement_form.hidden_tag() }}{{ settlement_form.amount(class="w-full px-4 py-3", placeholder="Received amount") }}{{ settlement_form.settled_date(class="w-full px-4 py-3") }}<button class="action-pill bg-emerald-600 text-sm text-white" type="submit">Mark received</button></form>
-        {% endif %}
-      </div>
-
-      {% if action_state.show_delete_draft %}
-        <div class="glass-card rounded-[2rem] p-6">
-          <h3 class="text-lg font-semibold">Delete Draft</h3>
-          <form class="mt-4" method="post" action="{{ url_for('transactions.transaction_delete', transaction_id=transaction.id) }}">
-            {{ delete_form.hidden_tag() }}
-            <button class="action-pill border border-rose-300 text-sm text-rose-700" type="submit">Delete draft</button>
-          </form>
-        </div>
+    <div class="flex flex-wrap gap-3">
+      <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('transactions.transactions_list') }}">Back to History</a>
+      {% if transaction.transaction_type == 'revenue' %}
+        <a class="action-pill bg-emerald-600 text-sm font-medium text-white" href="{{ url_for('transactions.revenue_new') }}">Add Revenue</a>
+      {% else %}
+        <a class="action-pill bg-rose-600 text-sm font-medium text-white" href="{{ url_for('transactions.expense_new') }}">Add Expense</a>
       {% endif %}
     </div>
   </div>
