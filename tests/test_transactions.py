@@ -135,7 +135,7 @@ def test_revenue_mark_received_still_works_for_legacy_flow(client, app, sample_d
         assert item.status == RevenueStatus.RECEIVED.value
 
 
-def test_expense_create_applies_budget_and_accounting_mapping(client, app, sample_data, login):
+def test_expense_create_skips_heavy_control_resolution_for_simplified_flow(client, app, sample_data, login):
     with app.app_context():
         db.session.add(
             Budget(
@@ -177,7 +177,7 @@ def test_expense_create_applies_budget_and_accounting_mapping(client, app, sampl
     with app.app_context():
         item = Transaction.query.filter_by(title="Printer supplies").first()
         assert item is not None
-        assert item.budget is not None
-        assert item.accounting_gl_code == "6000"
-        assert item.accounting_cost_center == "OPS"
-        assert item.accounting_project_code == "HQ"
+        assert item.budget is None
+        assert item.accounting_gl_code is None
+        assert item.accounting_cost_center is None
+        assert item.accounting_project_code is None

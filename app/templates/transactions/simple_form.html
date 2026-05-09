@@ -38,7 +38,9 @@
         </div>
       </div>
       <div class="mt-8 flex flex-wrap gap-3">
-        {{ form.submit(class="action-pill bg-slate-900 text-sm font-medium text-white") }}
+        <button class="action-pill bg-slate-900 text-sm font-medium text-white" type="submit">
+          {{ "Add revenue" if entry_type == "revenue" else "Add expense" }}
+        </button>
         <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('transactions.transactions_list') }}">View history</a>
       </div>
     </form>

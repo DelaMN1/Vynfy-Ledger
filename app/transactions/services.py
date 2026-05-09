@@ -9,7 +9,7 @@ from pathlib import Path
 from flask import abort, current_app, request
 from flask_sqlalchemy.pagination import Pagination
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Query
+from sqlalchemy.orm import Query, joinedload
 
 from app.extensions import db
 from app.models import (
@@ -128,6 +128,15 @@ def visible_transactions_query(user: User, transaction_type: str | None = None) 
     return query
 
 
+def _transaction_display_options():
+    return (
+        joinedload(Transaction.category),
+        joinedload(Transaction.account),
+        joinedload(Transaction.payment_method),
+        joinedload(Transaction.submitted_by),
+    )
+
+
 def apply_filters(query: Query[Transaction], filters: TransactionFilters) -> Query[Transaction]:
     if filters.q:
         like = f"%{filters.q.strip()}%"
@@ -154,13 +163,17 @@ def apply_filters(query: Query[Transaction], filters: TransactionFilters) -> Que
 
 
 def list_transactions(*, user: User, transaction_type: str | None = None, filters: TransactionFilters | None = None) -> Pagination:
-    query = visible_transactions_query(user, transaction_type).order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())
+    query = (
+        visible_transactions_query(user, transaction_type)
+        .options(*_transaction_display_options())
+        .order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())
+    )
     query = apply_filters(query, filters or TransactionFilters())
     return query.paginate(page=current_page(), per_page=page_size(), error_out=False)
 
 
 def get_transaction_or_404(transaction_id: int, *, user: User, transaction_type: str | None = None) -> Transaction:
-    item = db.session.get(Transaction, transaction_id)
+    item = Transaction.query.options(*_transaction_display_options()).filter(Transaction.id == transaction_id).first()
     if not item or item.deleted_at is not None:
         abort(404)
     if transaction_type and item.transaction_type != transaction_type:
@@ -608,7 +621,6 @@ def create_simple_revenue(
     )
     db.session.add(item)
     db.session.flush()
-    _apply_transaction_controls(item, strict=False)
     _sync_account_balance(item.account_id)
     _record_history(item, actor=actor, action="create", to_status=item.status)
     record_audit(user_id=actor.id, entity_type="transaction", entity_id=item.id, action="create", new_values=_serialize(item))
@@ -649,7 +661,6 @@ def create_simple_expense(
     )
     db.session.add(item)
     db.session.flush()
-    _apply_transaction_controls(item, strict=False)
     _sync_account_balance(item.account_id)
     _record_history(item, actor=actor, action="create", to_status=item.status)
     record_audit(user_id=actor.id, entity_type="transaction", entity_id=item.id, action="create", new_values=_serialize(item))
@@ -838,7 +849,13 @@ def soft_delete_draft(transaction: Transaction, actor: User) -> None:
 
 
 def recent_transactions(user: User, limit: int = 8) -> list[Transaction]:
-    return visible_transactions_query(user).order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc()).limit(limit).all()
+    return (
+        visible_transactions_query(user)
+        .options(*_transaction_display_options())
+        .order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())
+        .limit(limit)
+        .all()
+    )
 
 
 def pending_approvals() -> list[Transaction]:

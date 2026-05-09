@@ -28,6 +28,11 @@ PUBLIC_ENDPOINTS = {
     "static",
 }
 
+AUTH_AWARE_PUBLIC_ENDPOINTS = {
+    "index",
+    "auth.login",
+}
+
 
 def create_app(config_name: str | None = None) -> Flask:
     app = Flask(__name__, instance_relative_config=True)
@@ -72,9 +77,14 @@ def register_hooks(app: Flask) -> None:
     @app.before_request
     def enforce_security():
         g.csp_nonce = secrets.token_urlsafe(16)
-        load_user_from_session()
         if app.config["FORCE_HTTPS"] and not request.is_secure:
             return redirect(_https_url(), code=301)
+        if request.endpoint == "static":
+            return None
+        if request.endpoint and (
+            request.endpoint not in PUBLIC_ENDPOINTS or request.endpoint in AUTH_AWARE_PUBLIC_ENDPOINTS
+        ):
+            load_user_from_session()
         if request.endpoint and request.endpoint not in PUBLIC_ENDPOINTS and not getattr(g, "current_user", None):
             return _login_redirect()
 
