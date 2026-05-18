@@ -87,6 +87,8 @@ class Config:
     PASSWORD_RESET_MINUTES = int(os.getenv("PASSWORD_RESET_MINUTES", "15"))
     ADMIN_STEP_UP_MINUTES = int(os.getenv("ADMIN_STEP_UP_MINUTES", "15"))
     PASSWORD_MIN_LENGTH = 12
+    INITIAL_ADMIN_EMAIL = os.getenv("INITIAL_ADMIN_EMAIL", "").strip().lower()
+
     REGISTRATION_ENABLED = _env_flag(
         "REGISTRATION_ENABLED",
         default_in_production=False,

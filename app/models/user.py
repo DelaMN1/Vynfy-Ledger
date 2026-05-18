@@ -44,3 +44,19 @@ class User(TimestampMixin, db.Model):
 
     def check_password(self, password: str) -> bool:
         return verify_password(self.password_hash, password)
+
+    @classmethod
+    def create_admin(cls, full_name: str, email: str, password: str) -> "User":
+        admin = cls(
+            full_name=full_name.strip(),
+            email=email.strip().lower(),
+            role=Role.ADMIN.value,
+            is_active=True,
+            email_verified=True,
+            can_create_revenue=True,
+        )
+
+        admin.set_password(password)
+        db.session.add(admin)
+
+        return admin

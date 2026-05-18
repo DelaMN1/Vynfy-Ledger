@@ -38,8 +38,14 @@ def create_app(config_name: str | None = None) -> Flask:
     app = Flask(__name__, instance_relative_config=True)
     env_name = (config_name or DEFAULT_CONFIG_NAME or "development").lower()
     app.config.from_object(config_by_name.get(env_name, DevelopmentConfig))
+
     if app.config["TRUST_PROXY_COUNT"]:
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=app.config["TRUST_PROXY_COUNT"], x_proto=app.config["TRUST_PROXY_COUNT"], x_host=app.config["TRUST_PROXY_COUNT"])
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=app.config["TRUST_PROXY_COUNT"],
+            x_proto=app.config["TRUST_PROXY_COUNT"],
+            x_host=app.config["TRUST_PROXY_COUNT"],
+        )
 
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
     Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
@@ -54,6 +60,7 @@ def create_app(config_name: str | None = None) -> Flask:
     register_blueprints(app)
     register_errors(app)
     register_shell_context(app)
+    register_cli_commands(app)
 
     @app.get("/")
     def index():
@@ -77,20 +84,30 @@ def register_hooks(app: Flask) -> None:
     @app.before_request
     def enforce_security():
         g.csp_nonce = secrets.token_urlsafe(16)
+
         if app.config["FORCE_HTTPS"] and not request.is_secure:
             return redirect(_https_url(), code=301)
+
         if request.endpoint == "static":
             return None
+
         if request.endpoint and (
-            request.endpoint not in PUBLIC_ENDPOINTS or request.endpoint in AUTH_AWARE_PUBLIC_ENDPOINTS
+            request.endpoint not in PUBLIC_ENDPOINTS
+            or request.endpoint in AUTH_AWARE_PUBLIC_ENDPOINTS
         ):
             load_user_from_session()
-        if request.endpoint and request.endpoint not in PUBLIC_ENDPOINTS and not getattr(g, "current_user", None):
+
+        if (
+            request.endpoint
+            and request.endpoint not in PUBLIC_ENDPOINTS
+            and not getattr(g, "current_user", None)
+        ):
             return _login_redirect()
 
     @app.after_request
     def finalize_auth(response):
         csp_nonce = getattr(g, "csp_nonce", "")
+
         response.headers.setdefault(
             "Content-Security-Policy",
             "; ".join(
@@ -108,12 +125,24 @@ def register_hooks(app: Flask) -> None:
                 ]
             ),
         )
+
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        response.headers.setdefault("Permissions-Policy", "camera=(), geolocation=(), microphone=()")
+        response.headers.setdefault(
+            "Referrer-Policy",
+            "strict-origin-when-cross-origin",
+        )
+        response.headers.setdefault(
+            "Permissions-Policy",
+            "camera=(), geolocation=(), microphone=()",
+        )
+
         if app.config["FORCE_HTTPS"] and request.is_secure:
-            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
+
         return apply_auth_cookie(response)
 
     @app.context_processor
@@ -144,21 +173,47 @@ def register_blueprints(app: Flask) -> None:
 def register_errors(app: Flask) -> None:
     @app.errorhandler(403)
     def forbidden(_error):
-        return render_template("partials/error.html", title="Forbidden", message="You do not have access to this page."), 403
+        return (
+            render_template(
+                "partials/error.html",
+                title="Forbidden",
+                message="You do not have access to this page.",
+            ),
+            403,
+        )
 
     @app.errorhandler(404)
     def not_found(_error):
-        return render_template("partials/error.html", title="Not found", message="The requested page could not be found."), 404
+        return (
+            render_template(
+                "partials/error.html",
+                title="Not found",
+                message="The requested page could not be found.",
+            ),
+            404,
+        )
 
     @app.errorhandler(413)
     def too_large(_error):
-        return render_template("partials/error.html", title="Upload too large", message="Files must be 5MB or smaller."), 413
+        return (
+            render_template(
+                "partials/error.html",
+                title="Upload too large",
+                message="Files must be 5MB or smaller.",
+            ),
+            413,
+        )
 
     @app.errorhandler(500)
     def internal_error(_error):
         db.session.rollback()
+
         return (
-            render_template("partials/error.html", title="Server error", message="Something went wrong. Try again."),
+            render_template(
+                "partials/error.html",
+                title="Server error",
+                message="Something went wrong. Try again.",
+            ),
             500,
         )
 
@@ -168,4 +223,38 @@ def register_shell_context(app: Flask) -> None:
 
     @app.shell_context_processor
     def shell_context():
-        return {"db": db, "models": models}
+        return {
+            "db": db,
+            "models": models,
+        }
+
+
+def register_cli_commands(app: Flask) -> None:
+    import click
+
+    from app.models.user import User
+
+    @app.cli.command("create-admin")
+    @click.option("--name", prompt=True, help="Admin full name")
+    @click.option("--email", prompt=True, help="Admin email address")
+    @click.password_option("--password", confirmation_prompt=True)
+    def create_admin(name: str, email: str, password: str):
+        existing_user = User.query.filter_by(
+            email=email.strip().lower()
+        ).first()
+
+        if existing_user:
+            click.echo("Error: A user with that email already exists.")
+            return
+
+        admin = User.create_admin(
+            full_name=name,
+            email=email,
+            password=password,
+        )
+
+        db.session.commit()
+
+        click.echo(
+            f"Admin account created successfully for {admin.email}"
+        )
