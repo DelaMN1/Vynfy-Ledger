@@ -38,6 +38,7 @@ def _build_user(
     password: str,
     role: str,
     can_create_revenue: bool,
+    can_create_expense: bool,
     is_active: bool,
     hide_existing_account_errors: bool = False,
 ) -> User:
@@ -58,6 +59,7 @@ def _build_user(
         email=normalized_email,
         role=role,
         can_create_revenue=can_create_revenue,
+        can_create_expense=can_create_expense,
         email_verified=True,
         is_active=is_active,
     )
@@ -76,7 +78,6 @@ def _build_user(
 
     return user
 
-
 def register_user(
     *,
     full_name: str,
@@ -84,6 +85,7 @@ def register_user(
     password: str,
     role: str = "staff",
     can_create_revenue: bool = False,
+    can_create_expense: bool = False,
 ) -> User:
     user = _build_user(
         full_name=full_name,
@@ -91,6 +93,7 @@ def register_user(
         password=password,
         role=role,
         can_create_revenue=can_create_revenue,
+        can_create_expense=can_create_expense,
         is_active=True,
         hide_existing_account_errors=True,
     )
@@ -106,6 +109,31 @@ def register_user(
     return user
 
 
+def bootstrap_admin_user(*, full_name: str, email: str, password: str) -> User:
+    if User.query.filter_by(role=Role.ADMIN.value, is_active=True).first():
+        raise ServiceError("Bootstrap setup is no longer available.")
+
+    user = _build_user(
+        full_name=full_name,
+        email=email,
+        password=password,
+        role=Role.ADMIN.value,
+        can_create_revenue=True,
+        can_create_expense=True,
+        is_active=True,
+    )
+
+    record_audit(
+        user_id=user.id,
+        entity_type="user",
+        entity_id=user.id,
+        action="bootstrap_create_admin",
+        new_values={"email": user.email, "role": user.role},
+    )
+
+    return user
+
+
 def create_user_by_admin(
     *,
     actor: User,
@@ -114,6 +142,7 @@ def create_user_by_admin(
     password: str,
     role: str,
     can_create_revenue: bool,
+    can_create_expense: bool,
     is_active: bool,
 ) -> User:
     user = _build_user(
@@ -122,6 +151,7 @@ def create_user_by_admin(
         password=password,
         role=role,
         can_create_revenue=can_create_revenue,
+        can_create_expense=can_create_expense,
         is_active=is_active,
     )
 
@@ -133,35 +163,6 @@ def create_user_by_admin(
         new_values={
             "role": role,
             "is_active": is_active,
-        },
-    )
-
-    return user
-
-
-def create_initial_admin(
-    *,
-    full_name: str,
-    email: str,
-    password: str,
-) -> User:
-    user = _build_user(
-        full_name=full_name,
-        email=email,
-        password=password,
-        role=Role.ADMIN.value,
-        can_create_revenue=True,
-        is_active=True,
-    )
-
-    record_audit(
-        user_id=user.id,
-        entity_type="user",
-        entity_id=user.id,
-        action="bootstrap_admin_created",
-        new_values={
-            "role": user.role,
-            "email": user.email,
         },
     )
 

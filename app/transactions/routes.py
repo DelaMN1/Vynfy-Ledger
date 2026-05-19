@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 from flask import Blueprint, Response, flash, g, redirect, render_template, request, url_for
 
-from app.extensions import db
+from app.extensions import db, limiter
 from app.transactions.forms import (
     DeleteDraftForm,
     ExpenseActionForm,
@@ -19,6 +19,7 @@ from app.transactions.forms import (
 )
 from app.transactions.services import (
     add_transaction_comment,
+    apply_filters,
     approve_expense,
     assign_filter_choices,
     assign_form_choices,
@@ -39,7 +40,9 @@ from app.transactions.services import (
     submit_expense,
     transaction_exception_messages,
     update_transaction_from_form,
+    visible_transactions_query,
 )
+from app.setup.services import ensure_entry_setup, missing_setup_message, setup_status
 from app.utils.decorators import admin_required, login_required
 from app.utils.enums import TransactionType
 from app.utils.types import TransactionFilters
@@ -102,7 +105,54 @@ def _render_history() -> str:
         form.period.data = _history_period()
     selected_type = _history_type()
     form.transaction_type.data = selected_type or ""
-    pagination = list_transactions(user=g.current_user, transaction_type=selected_type, filters=_history_filters())
+    filters = _history_filters()
+    pagination = list_transactions(user=g.current_user, transaction_type=selected_type, filters=filters)
+    empty_state = None
+    if not pagination.items:
+        setup_state = setup_status()
+        if not setup_state["is_ready_for_basic_entry"]:
+            empty_state = {
+                "title": "Finish setup before relying on history",
+                "body": "Baseline categories, accounts, or payment methods are still missing, so this workspace is not fully operational yet.",
+                "primary_label": "Open setup",
+                "primary_url": url_for("setup.overview"),
+                "secondary_label": None,
+                "secondary_url": None,
+            }
+        else:
+            base_query = visible_transactions_query(g.current_user, selected_type)
+            total_records = base_query.count()
+            period_count = apply_filters(
+                base_query,
+                TransactionFilters(start_date=filters.start_date, end_date=filters.end_date),
+            ).count()
+            if total_records == 0:
+                empty_state = {
+                    "title": "No transactions yet",
+                    "body": "Create the first revenue or expense entry to start building ledger history.",
+                    "primary_label": "Add revenue",
+                    "primary_url": url_for("transactions.revenue_new"),
+                    "secondary_label": "Add expense",
+                    "secondary_url": url_for("transactions.expense_new"),
+                }
+            elif period_count == 0:
+                empty_state = {
+                    "title": "No records in this period",
+                    "body": "There are ledger records, but none fall inside the selected week, month, or year window.",
+                    "primary_label": "View this year",
+                    "primary_url": url_for("transactions.transactions_list", period="year", transaction_type=selected_type, q=request.args.get("q"), status=request.args.get("status")),
+                    "secondary_label": "Reset filters",
+                    "secondary_url": url_for("transactions.transactions_list"),
+                }
+            else:
+                empty_state = {
+                    "title": "No records match the current filters",
+                    "body": "Try clearing the status or search filters to widen the current history view.",
+                    "primary_label": "Reset filters",
+                    "primary_url": url_for("transactions.transactions_list", period=_history_period(), transaction_type=selected_type),
+                    "secondary_label": None,
+                    "secondary_url": None,
+                }
     return render_template(
         "transactions/list.html",
         page_title="History",
@@ -110,6 +160,7 @@ def _render_history() -> str:
         filter_form=form,
         selected_period=_history_period(),
         selected_type=selected_type,
+        empty_state=empty_state,
     )
 
 
@@ -127,8 +178,10 @@ def revenue_new():
         return redirect(url_for("transactions.transactions_list"))
     form = RevenueEntryForm()
     assign_simple_entry_choices(form)
+    entry_ready = setup_status()["is_ready_for_basic_entry"]
     if form.validate_on_submit():
         try:
+            ensure_entry_setup(TransactionType.REVENUE.value)
             create_simple_revenue(
                 company_name=form.company_name.data,
                 amount=form.amount.data,
@@ -144,7 +197,14 @@ def revenue_new():
         except ValueError as exc:
             db.session.rollback()
             flash(str(exc), "error")
-    return render_template("transactions/simple_form.html", form=form, entry_type=TransactionType.REVENUE.value, page_title="Add Revenue")
+    return render_template(
+        "transactions/simple_form.html",
+        form=form,
+        entry_type=TransactionType.REVENUE.value,
+        page_title="Add Revenue",
+        entry_ready=entry_ready,
+        entry_setup_message=missing_setup_message(transaction_type=TransactionType.REVENUE.value),
+    )
 
 
 @transactions_bp.get("/revenue/<int:transaction_id>")
@@ -207,10 +267,15 @@ def expense_list():
 @transactions_bp.route("/expenses/new", methods=["GET", "POST"])
 @login_required
 def expense_new():
+    if not (g.current_user.is_admin or g.current_user.can_create_expense):
+        flash("You do not have permission to create expense entries.", "error")
+        return redirect(url_for("transactions.transactions_list"))
     form = ExpenseEntryForm()
     assign_simple_entry_choices(form)
+    entry_ready = setup_status()["is_ready_for_basic_entry"]
     if form.validate_on_submit():
         try:
+            ensure_entry_setup(TransactionType.EXPENSE.value)
             create_simple_expense(
                 title=form.title.data,
                 amount=form.amount.data,
@@ -226,7 +291,14 @@ def expense_new():
         except ValueError as exc:
             db.session.rollback()
             flash(str(exc), "error")
-    return render_template("transactions/simple_form.html", form=form, entry_type=TransactionType.EXPENSE.value, page_title="Add Expense")
+    return render_template(
+        "transactions/simple_form.html",
+        form=form,
+        entry_type=TransactionType.EXPENSE.value,
+        page_title="Add Expense",
+        entry_ready=entry_ready,
+        entry_setup_message=missing_setup_message(transaction_type=TransactionType.EXPENSE.value),
+    )
 
 
 @transactions_bp.get("/expenses/<int:transaction_id>")
@@ -388,15 +460,20 @@ def transaction_delete(transaction_id: int):
 
 
 @transactions_bp.get("/transactions/export/csv")
+@limiter.limit("20 per hour")
 @login_required
 def transactions_export():
     history_mode = request.args.get("period") in {"week", "month", "year"} or _history_type() is not None
     filters = _history_filters() if history_mode else _filters()
-    content = export_transactions_csv(
-        user=g.current_user,
-        transaction_type=_history_type() if history_mode else request.args.get("type"),
-        filters=filters,
-    )
+    try:
+        content = export_transactions_csv(
+            user=g.current_user,
+            transaction_type=_history_type() if history_mode else request.args.get("type"),
+            filters=filters,
+        )
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("transactions.transactions_list"))
     return Response(
         content,
         mimetype="text/csv; charset=utf-8",

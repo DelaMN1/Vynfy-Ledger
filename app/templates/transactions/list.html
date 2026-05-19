@@ -66,7 +66,24 @@
               <td class="py-4">{% include "partials/status_badge.html" %}</td>
             </tr>
           {% else %}
-            <tr><td class="py-8 text-slate-500" colspan="7">No records match the current filters.</td></tr>
+            <tr>
+              <td class="py-8" colspan="7">
+                {% if empty_state %}
+                  <div class="rounded-[1.5rem] border border-slate-200 bg-slate-50 px-5 py-5">
+                    <p class="text-sm font-semibold text-slate-900">{{ empty_state.title }}</p>
+                    <p class="mt-2 text-sm text-slate-600">{{ empty_state.body }}</p>
+                    <div class="mt-4 flex flex-wrap gap-3">
+                      <a class="action-pill bg-slate-900 text-sm font-medium text-white" href="{{ empty_state.primary_url }}">{{ empty_state.primary_label }}</a>
+                      {% if empty_state.secondary_url %}
+                        <a class="action-pill border border-slate-300 text-sm" href="{{ empty_state.secondary_url }}">{{ empty_state.secondary_label }}</a>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% else %}
+                  <span class="text-slate-500">No records match the current filters.</span>
+                {% endif %}
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>

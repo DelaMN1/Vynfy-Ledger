@@ -66,11 +66,25 @@ def client(app):
 @pytest.fixture
 def sample_data(app) -> SampleData:
     with app.app_context():
-        admin = User(full_name="Admin User", email="admin@example.com", role=Role.ADMIN.value, email_verified=True, can_create_revenue=True)
+        admin = User(
+            full_name="Admin User",
+            email="admin@example.com",
+            role=Role.ADMIN.value,
+            email_verified=True,
+            can_create_revenue=True,
+            can_create_expense=True,
+        )
         admin.set_password("AdminPassword123")
-        staff = User(full_name="Staff User", email="staff@example.com", role=Role.STAFF.value, email_verified=True)
+        staff = User(full_name="Staff User", email="staff@example.com", role=Role.STAFF.value, email_verified=True, can_create_expense=True)
         staff.set_password("StaffPassword123")
-        revenue_staff = User(full_name="Revenue Staff", email="revenue@example.com", role=Role.STAFF.value, email_verified=True, can_create_revenue=True)
+        revenue_staff = User(
+            full_name="Revenue Staff",
+            email="revenue@example.com",
+            role=Role.STAFF.value,
+            email_verified=True,
+            can_create_revenue=True,
+            can_create_expense=True,
+        )
         revenue_staff.set_password("RevenuePassword123")
         outsider = User(full_name="Other User", email="other@example.com", role=Role.STAFF.value, email_verified=True)
         outsider.set_password("OtherPassword123")

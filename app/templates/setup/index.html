@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block page_title %}Setup{% endblock %}
+{% block content %}
+  <div class="space-y-5">
+    <div class="glass-card rounded-[2rem] p-7">
+      <div class="stack-header">
+        <div class="stack-title">
+          <p class="section-kicker">Workspace Setup</p>
+          <h3 class="mt-2 text-2xl font-semibold">Fresh-install readiness</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-600">Complete these prerequisites before relying on the simplified entry forms, history, and reports.</p>
+        </div>
+        {% if current_user.is_admin %}
+          <form method="post" action="{{ url_for('setup.seed_baseline') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="action-pill bg-slate-900 text-sm font-medium text-white" type="submit">Seed Baseline Data</button>
+          </form>
+        {% endif %}
+      </div>
+      <div class="mt-6 grid gap-4 md:grid-cols-2">
+        {% for item in setup_state.missing_requirements %}
+          <div class="rounded-[1.5rem] border border-amber-200 bg-amber-50 px-5 py-4">
+            <p class="text-sm font-semibold text-amber-950">{{ item.label }}</p>
+            <p class="mt-2 text-sm text-amber-900">{{ item.description }}</p>
+            {% if current_user.is_admin and item.endpoint %}
+              <a class="mt-4 inline-flex rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-900" href="{{ url_for(item.endpoint) }}">Resolve</a>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-5 py-4 md:col-span-2">
+            <p class="text-sm font-semibold text-emerald-900">Setup complete</p>
+            <p class="mt-2 text-sm text-emerald-900">Baseline setup data is in place and the workspace is ready for normal operation.</p>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+{% endblock %}

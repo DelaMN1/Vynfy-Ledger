@@ -16,6 +16,26 @@
   </div>
 </div>
 
+{% if setup_state and not setup_state.is_ready %}
+  <div class="mt-6 rounded-[2rem] border border-amber-200 bg-amber-50 px-6 py-5 text-amber-950">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Setup Progress</p>
+        <p class="mt-2 text-sm">
+          {% if current_user.is_admin %}
+            Complete the remaining setup items before treating dashboard totals and history as production-ready.
+          {% else %}
+            This workspace is still being configured. Some dashboard totals may remain sparse until setup is complete.
+          {% endif %}
+        </p>
+      </div>
+      {% if current_user.is_admin %}
+        <a class="action-pill border border-amber-300 bg-white text-sm text-amber-900" href="{{ url_for('setup.overview') }}">Open setup</a>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
 <div class="mt-6 glass-card rounded-[2rem] p-6">
   <div class="stack-header">
     <div class="stack-title">

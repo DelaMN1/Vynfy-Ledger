@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "partials/password_field.html" import render_password_field %}
+{% block title %}Initialize {{ app_name }}{% endblock %}
+{% block auth_content %}
+  <div class="mx-auto flex min-h-screen max-w-6xl items-center px-6 py-12">
+    <div class="grid w-full gap-10 rounded-[2rem] bg-white/95 p-8 shadow-2xl shadow-slate-900/15 lg:grid-cols-[1.05fr_0.95fr] lg:p-12">
+      <section class="rounded-[1.75rem] bg-slate-950 p-8 text-slate-100">
+        <p class="text-xs uppercase tracking-[0.35em] text-emerald-400">First Run Setup</p>
+        <h1 class="mt-4 text-4xl font-semibold">Initialize the first admin and baseline ledger data.</h1>
+        <p class="mt-4 max-w-xl text-slate-300">This one-time flow creates the first admin account, then seeds the minimum categories, accounts, and payment methods needed for a fresh install to work.</p>
+      </section>
+      <section class="rounded-[1.75rem] bg-slate-50 p-8">
+        <h2 class="text-2xl font-semibold text-slate-900">Create first admin</h2>
+        <p class="mt-2 max-w-md text-sm text-slate-500">Use a strong password. After this succeeds, the initialization route disables itself automatically.</p>
+        <form class="mt-8 space-y-5" method="post">
+          {{ form.hidden_tag() }}
+          {% if bootstrap_token_required %}
+            <div>
+              {{ form.access_token.label(class="mb-2 block text-sm font-medium text-slate-700") }}
+              {{ form.access_token(class="w-full rounded-2xl border-slate-200 bg-white px-4 py-3", autocomplete="one-time-code") }}
+            </div>
+          {% endif %}
+          <div>
+            {{ form.full_name.label(class="mb-2 block text-sm font-medium text-slate-700") }}
+            {{ form.full_name(class="w-full rounded-2xl border-slate-200 bg-white px-4 py-3") }}
+          </div>
+          <div>
+            {{ form.email.label(class="mb-2 block text-sm font-medium text-slate-700") }}
+            {{ form.email(class="w-full rounded-2xl border-slate-200 bg-white px-4 py-3") }}
+          </div>
+          {{ render_password_field(form.password, "bootstrap-password", autocomplete="new-password", label_class="mb-2 block text-sm font-medium text-slate-700", input_class="w-full rounded-2xl border-slate-200 bg-white py-3 pl-12 pr-12") }}
+          <div>
+            {{ form.confirm_password.label(class="mb-2 block text-sm font-medium text-slate-700") }}
+            {{ form.confirm_password(class="w-full rounded-2xl border-slate-200 bg-white px-4 py-3") }}
+          </div>
+          <button class="w-full rounded-2xl bg-slate-950 px-5 py-3 font-medium text-white" type="submit">Create Admin</button>
+        </form>
+      </section>
+    </div>
+  </div>
+{% endblock %}

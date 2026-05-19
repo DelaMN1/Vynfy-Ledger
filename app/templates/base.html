@@ -4,10 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <script nonce="{{ csp_nonce }}" src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
-    <script nonce="{{ csp_nonce }}" src="https://unpkg.com/htmx.org@1.9.12"></script>
-    <script nonce="{{ csp_nonce }}" src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    {% block head_scripts %}{% endblock %}
   </head>
   <body class="min-h-screen text-slate-900">
     {% if current_user %}
@@ -24,6 +25,9 @@
             <a class="sidebar-link {{ 'is-active' if request.endpoint in ['transactions.expense_new', 'transactions.expense_detail', 'transactions.expense_edit'] else '' }}" href="{{ url_for('transactions.expense_new') }}">Add Expense</a>
             <a class="sidebar-link {{ 'is-active' if request.endpoint in ['transactions.transactions_list', 'transactions.transaction_detail', 'transactions.revenue_list', 'transactions.expense_list'] else '' }}" href="{{ url_for('transactions.transactions_list') }}">History</a>
             {% if current_user.is_admin %}
+              {% if setup_state and not setup_state.is_ready %}
+                <a class="sidebar-link {{ 'is-active' if request.endpoint == 'setup.overview' else '' }}" href="{{ url_for('setup.overview') }}">Setup</a>
+              {% endif %}
               <a class="sidebar-link {{ 'is-active' if request.endpoint == 'settings.accounts' else '' }}" href="{{ url_for('settings.accounts') }}">Accounts</a>
               <a class="sidebar-link {{ 'is-active' if request.endpoint == 'settings.users' else '' }}" href="{{ url_for('settings.users') }}">Users</a>
             {% endif %}
@@ -49,6 +53,7 @@
           </header>
           <section class="px-6 py-6">
             {% include "partials/flash_messages.html" %}
+            {% include "partials/setup_banner.html" %}
             {% block content %}{% endblock %}
           </section>
         </main>
@@ -59,6 +64,7 @@
         {% block auth_content %}{% endblock %}
       </main>
     {% endif %}
-    <script nonce="{{ csp_nonce }}" src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script nonce="{{ csp_nonce }}" src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+    {% block page_scripts %}{% endblock %}
   </body>
 </html>

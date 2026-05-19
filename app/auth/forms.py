@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask_wtf import FlaskForm
 from wtforms import BooleanField, PasswordField, SelectField, StringField, SubmitField
-from wtforms.validators import DataRequired, Email, EqualTo, Length
+from wtforms.validators import DataRequired, Email, EqualTo, Length, Optional
 
 from app.utils.enums import Role
 
@@ -21,6 +21,11 @@ class RegisterForm(FlaskForm):
         "Confirm password", validators=[DataRequired(), EqualTo("password", message="Passwords must match.")]
     )
     submit = SubmitField("Create account")
+
+
+class BootstrapAdminForm(RegisterForm):
+    access_token = StringField("Bootstrap access token", validators=[Optional(), Length(max=255)])
+    submit = SubmitField("Create admin")
 
 
 class ForgotPasswordForm(FlaskForm):
@@ -46,5 +51,6 @@ class AdminUserForm(FlaskForm):
         validators=[DataRequired()],
     )
     can_create_revenue = BooleanField("Can create revenue")
+    can_create_expense = BooleanField("Can create expense")
     is_active = BooleanField("Active", default=True)
     submit = SubmitField("Create user")

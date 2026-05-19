@@ -4,6 +4,7 @@ from datetime import datetime
 from datetime import timedelta
 
 from flask import Response, current_app, g, request
+from sqlalchemy.orm import joinedload
 
 from app.extensions import db
 from app.models.session import UserSession
@@ -67,7 +68,7 @@ def load_user_from_session() -> None:
         return
 
     session = (
-        UserSession.query.join(UserSession.user)
+        UserSession.query.options(joinedload(UserSession.user))
         .filter(UserSession.token_hash == hash_token(raw_token), UserSession.revoked_at.is_(None))
         .first()
     )

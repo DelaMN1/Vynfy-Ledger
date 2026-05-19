@@ -3,11 +3,13 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from flask import Blueprint, Response, abort, flash, g, redirect, render_template, url_for
+from sqlalchemy.orm import joinedload
 
 from app.auth.forms import AdminUserForm
 from app.auth.services import create_user_by_admin, update_user_role
 from app.extensions import db
 from app.models import Account, AccountingMapping, Budget, Category, PaymentMethod, SpendPolicy, User
+from app.setup.services import account_balance_snapshots
 from app.settings.forms import AccountForm, AccountingMappingForm, BudgetForm, CategoryForm, PaymentMethodForm, SpendPolicyForm, UserRoleForm
 from app.settings.services import create_account, create_accounting_mapping, create_budget, create_category, create_payment_method, create_spend_policy
 from app.utils.decorators import admin_required
@@ -15,18 +17,6 @@ from app.utils.exceptions import ServiceError
 
 
 settings_bp = Blueprint("settings", __name__)
-
-
-def _settings_context() -> dict[str, list[object]]:
-    return {
-        "categories": Category.query.order_by(Category.name.asc()).all(),
-        "accounts": Account.query.order_by(Account.name.asc()).all(),
-        "methods": PaymentMethod.query.order_by(PaymentMethod.name.asc()).all(),
-        "users": User.query.order_by(User.full_name.asc()).all(),
-        "budgets": Budget.query.order_by(Budget.name.asc()).all(),
-        "policies": SpendPolicy.query.order_by(SpendPolicy.name.asc()).all(),
-        "mappings": AccountingMapping.query.order_by(AccountingMapping.name.asc()).all(),
-    }
 
 
 def _assign_finance_rule_choices(form: BudgetForm | SpendPolicyForm | AccountingMappingForm) -> None:
@@ -68,13 +58,14 @@ def categories():
         )
         if response:
             return response
-    return render_template("settings/categories.html", form=form, **_settings_context())
+    return render_template("settings/categories.html", form=form, categories=Category.query.order_by(Category.name.asc()).all())
 
 
 @settings_bp.route("/settings/accounts", methods=["GET", "POST"])
 @admin_required
 def accounts():
     form = AccountForm()
+    balance_snapshots = account_balance_snapshots()
     if form.validate_on_submit():
         response = _submit_settings_change(
             success_message="Account saved.",
@@ -89,7 +80,7 @@ def accounts():
         )
         if response:
             return response
-    return render_template("settings/accounts.html", form=form, **_settings_context())
+    return render_template("settings/accounts.html", form=form, balance_snapshots=balance_snapshots)
 
 
 @settings_bp.route("/settings/payment-methods", methods=["GET", "POST"])
@@ -104,7 +95,7 @@ def payment_methods():
         )
         if response:
             return response
-    return render_template("settings/payment_methods.html", form=form, **_settings_context())
+    return render_template("settings/payment_methods.html", form=form, methods=PaymentMethod.query.order_by(PaymentMethod.name.asc()).all())
 
 
 @settings_bp.route("/settings/users", methods=["GET", "POST"])
@@ -123,12 +114,18 @@ def users():
                 password=form.password.data,
                 role=form.role.data,
                 can_create_revenue=form.can_create_revenue.data,
+                can_create_expense=form.can_create_expense.data,
                 is_active=form.is_active.data,
             ),
         )
         if response:
             return response
-    return render_template("settings/users.html", form=form, user_role_form=user_role_form, **_settings_context())
+    return render_template(
+        "settings/users.html",
+        form=form,
+        user_role_form=user_role_form,
+        users=User.query.order_by(User.full_name.asc()).all(),
+    )
 
 
 @settings_bp.post("/settings/users/<int:user_id>/role")
@@ -176,7 +173,12 @@ def budgets():
         )
         if response:
             return response
-    return render_template("settings/budgets.html", form=form, **_settings_context())
+    budgets = (
+        Budget.query.options(joinedload(Budget.category), joinedload(Budget.account), joinedload(Budget.owner))
+        .order_by(Budget.name.asc())
+        .all()
+    )
+    return render_template("settings/budgets.html", form=form, budgets=budgets)
 
 
 @settings_bp.route("/settings/policies", methods=["GET", "POST"])
@@ -204,7 +206,7 @@ def policies():
         )
         if response:
             return response
-    return render_template("settings/policies.html", form=form, **_settings_context())
+    return render_template("settings/policies.html", form=form, policies=SpendPolicy.query.order_by(SpendPolicy.name.asc()).all())
 
 
 @settings_bp.route("/settings/accounting-mappings", methods=["GET", "POST"])
@@ -230,4 +232,8 @@ def accounting_mappings():
         )
         if response:
             return response
-    return render_template("settings/accounting_mappings.html", form=form, **_settings_context())
+    return render_template(
+        "settings/accounting_mappings.html",
+        form=form,
+        mappings=AccountingMapping.query.order_by(AccountingMapping.name.asc()).all(),
+    )

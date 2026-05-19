@@ -6,6 +6,9 @@ from app.models.base import TimestampMixin
 
 class AccountingMapping(TimestampMixin, db.Model):
     __tablename__ = "accounting_mappings"
+    __table_args__ = (
+        db.Index("ix_accounting_mappings_active_scope", "is_active", "transaction_type", "category_id", "account_id", "payment_method_id"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False, unique=True)

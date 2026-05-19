@@ -45,7 +45,9 @@
           {% else %}
             <span class="text-slate-500">Password resets are handled internally.</span>
           {% endif %}
-          {% if config.REGISTRATION_ENABLED %}
+          {% if setup_state and setup_state.bootstrap_open %}
+            <a class="font-medium text-slate-600 transition hover:text-slate-900" href="{{ url_for('setup.initialize') }}">Initialize system</a>
+          {% elif config.REGISTRATION_ENABLED %}
             <a class="font-medium text-slate-600 transition hover:text-slate-900" href="{{ url_for('auth.register') }}">Create account</a>
           {% else %}
             <span class="text-slate-500">Account access is managed internally.</span>

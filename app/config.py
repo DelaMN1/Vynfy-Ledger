@@ -104,6 +104,13 @@ class Config:
     RATELIMIT_HEADERS_ENABLED = True
     RATELIMIT_DEFAULT = "300 per hour"
     RATELIMIT_STORAGE_URI = os.getenv("RATELIMIT_STORAGE_URI", "memory://")
+    BOOTSTRAP_SETUP_ENABLED = _env_flag(
+        "BOOTSTRAP_SETUP_ENABLED",
+        default_in_production=False,
+        default_outside_production=True,
+    )
+    BOOTSTRAP_SETUP_TOKEN = (os.getenv("BOOTSTRAP_SETUP_TOKEN") or "").strip() or None
+    MAX_EXPORT_ROWS = int(os.getenv("MAX_EXPORT_ROWS", "5000"))
     DEFAULT_PAGE_SIZE = 10
     DASHBOARD_MONTHS = 6
     COMPANY_NAME = os.getenv("COMPANY_NAME", "Vynfy")

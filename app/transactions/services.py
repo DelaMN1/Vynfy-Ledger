@@ -8,8 +8,8 @@ from pathlib import Path
 
 from flask import abort, current_app, request
 from flask_sqlalchemy.pagination import Pagination
-from sqlalchemy import func, or_
-from sqlalchemy.orm import Query, joinedload
+from sqlalchemy import case, func, literal, or_
+from sqlalchemy.orm import Query, joinedload, selectinload
 
 from app.extensions import db
 from app.models import (
@@ -26,7 +26,9 @@ from app.models import (
     User,
 )
 from app.transactions.validators import derive_revenue_status, validate_status_transition
+from app.setup.services import sync_account_balance
 from app.utils.audit import record_audit
+from app.utils.formatting import safe_csv_cell
 from app.utils.enums import (
     EXPENSE_EDITABLE_STATUSES,
     EXPENSE_SETTLED_STATUSES,
@@ -128,12 +130,18 @@ def visible_transactions_query(user: User, transaction_type: str | None = None) 
     return query
 
 
-def _transaction_display_options():
+def _list_transaction_display_options():
     return (
         joinedload(Transaction.category),
         joinedload(Transaction.account),
         joinedload(Transaction.payment_method),
         joinedload(Transaction.submitted_by),
+    )
+
+
+def _detail_transaction_display_options():
+    return _list_transaction_display_options() + (
+        selectinload(Transaction.status_history).joinedload(TransactionStatusHistory.changed_by),
     )
 
 
@@ -165,7 +173,7 @@ def apply_filters(query: Query[Transaction], filters: TransactionFilters) -> Que
 def list_transactions(*, user: User, transaction_type: str | None = None, filters: TransactionFilters | None = None) -> Pagination:
     query = (
         visible_transactions_query(user, transaction_type)
-        .options(*_transaction_display_options())
+        .options(*_list_transaction_display_options())
         .order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())
     )
     query = apply_filters(query, filters or TransactionFilters())
@@ -173,7 +181,7 @@ def list_transactions(*, user: User, transaction_type: str | None = None, filter
 
 
 def get_transaction_or_404(transaction_id: int, *, user: User, transaction_type: str | None = None) -> Transaction:
-    item = Transaction.query.options(*_transaction_display_options()).filter(Transaction.id == transaction_id).first()
+    item = Transaction.query.options(*_detail_transaction_display_options()).filter(Transaction.id == transaction_id).first()
     if not item or item.deleted_at is not None:
         abort(404)
     if transaction_type and item.transaction_type != transaction_type:
@@ -206,113 +214,77 @@ def _validate_dates(transaction_date, due_date, settled_date) -> None:
         raise ServiceError("Settlement date cannot be earlier than the transaction date.")
 
 
-def _sync_account_balance(account_id: int) -> None:
-    account = db.session.get(Account, account_id)
-    if not account:
-        return
-    revenue_total = (
-        db.session.query(func.coalesce(func.sum(Transaction.received_amount), 0))
-        .filter(
-            Transaction.account_id == account_id,
-            Transaction.transaction_type == TransactionType.REVENUE.value,
-            Transaction.status.in_(REVENUE_SETTLED_STATUSES),
-            Transaction.deleted_at.is_(None),
-        )
-        .scalar()
-    )
-    expense_total = (
-        db.session.query(func.coalesce(func.sum(Transaction.amount), 0))
-        .filter(
-            Transaction.account_id == account_id,
-            Transaction.transaction_type == TransactionType.EXPENSE.value,
-            Transaction.status.in_(EXPENSE_SETTLED_STATUSES),
-            Transaction.deleted_at.is_(None),
-        )
-        .scalar()
-    )
-    account.current_balance_cached = Decimal(account.opening_balance or 0) + Decimal(revenue_total or 0) - Decimal(expense_total or 0)
-
-
 def _transaction_amount(item: Transaction) -> Decimal:
     if item.transaction_type == TransactionType.REVENUE.value:
         return Decimal(item.expected_amount or item.amount or 0)
     return Decimal(item.amount or 0)
 
 
-def _matching_score(*, transaction_type: str | None, category_id: int | None, account_id: int | None, payment_method_id: int | None = None, owner_id: int | None = None) -> int:
-    return sum(value is not None for value in (transaction_type, category_id, account_id, payment_method_id, owner_id))
+def _candidate_score(*columns) -> object:
+    score = literal(0)
+    for column in columns:
+        score = score + case((column.is_not(None), 1), else_=0)
+    return score
 
 
 def _resolve_spend_policy(transaction: Transaction) -> SpendPolicy | None:
-    best_policy = None
-    best_score = -1
-    for policy in SpendPolicy.query.filter_by(is_active=True).all():
-        if policy.transaction_type and policy.transaction_type != transaction.transaction_type:
-            continue
-        if policy.category_id and policy.category_id != transaction.category_id:
-            continue
-        if policy.account_id and policy.account_id != transaction.account_id:
-            continue
-        if policy.payment_method_id and policy.payment_method_id != transaction.payment_method_id:
-            continue
-        score = _matching_score(
-            transaction_type=policy.transaction_type,
-            category_id=policy.category_id,
-            account_id=policy.account_id,
-            payment_method_id=policy.payment_method_id,
+    score = _candidate_score(
+        SpendPolicy.transaction_type,
+        SpendPolicy.category_id,
+        SpendPolicy.account_id,
+        SpendPolicy.payment_method_id,
+    )
+    return (
+        SpendPolicy.query.filter_by(is_active=True)
+        .filter(
+            or_(SpendPolicy.transaction_type.is_(None), SpendPolicy.transaction_type == transaction.transaction_type),
+            or_(SpendPolicy.category_id.is_(None), SpendPolicy.category_id == transaction.category_id),
+            or_(SpendPolicy.account_id.is_(None), SpendPolicy.account_id == transaction.account_id),
+            or_(SpendPolicy.payment_method_id.is_(None), SpendPolicy.payment_method_id == transaction.payment_method_id),
         )
-        if score > best_score:
-            best_policy = policy
-            best_score = score
-    return best_policy
+        .order_by(score.desc(), SpendPolicy.id.asc())
+        .first()
+    )
 
 
 def _resolve_budget(transaction: Transaction) -> Budget | None:
-    best_budget = None
-    best_score = -1
-    for budget in Budget.query.filter_by(is_active=True).all():
-        if budget.transaction_type and budget.transaction_type != transaction.transaction_type:
-            continue
-        if budget.category_id and budget.category_id != transaction.category_id:
-            continue
-        if budget.account_id and budget.account_id != transaction.account_id:
-            continue
-        if budget.owner_id and budget.owner_id != transaction.submitted_by_id:
-            continue
-        score = _matching_score(
-            transaction_type=budget.transaction_type,
-            category_id=budget.category_id,
-            account_id=budget.account_id,
-            owner_id=budget.owner_id,
+    score = _candidate_score(
+        Budget.transaction_type,
+        Budget.category_id,
+        Budget.account_id,
+        Budget.owner_id,
+    )
+    return (
+        Budget.query.filter_by(is_active=True)
+        .filter(
+            or_(Budget.transaction_type.is_(None), Budget.transaction_type == transaction.transaction_type),
+            or_(Budget.category_id.is_(None), Budget.category_id == transaction.category_id),
+            or_(Budget.account_id.is_(None), Budget.account_id == transaction.account_id),
+            or_(Budget.owner_id.is_(None), Budget.owner_id == transaction.submitted_by_id),
         )
-        if score > best_score:
-            best_budget = budget
-            best_score = score
-    return best_budget
+        .order_by(score.desc(), Budget.id.asc())
+        .first()
+    )
 
 
 def _resolve_accounting_mapping(transaction: Transaction) -> AccountingMapping | None:
-    best_mapping = None
-    best_score = -1
-    for mapping in AccountingMapping.query.filter_by(is_active=True).all():
-        if mapping.transaction_type and mapping.transaction_type != transaction.transaction_type:
-            continue
-        if mapping.category_id and mapping.category_id != transaction.category_id:
-            continue
-        if mapping.account_id and mapping.account_id != transaction.account_id:
-            continue
-        if mapping.payment_method_id and mapping.payment_method_id != transaction.payment_method_id:
-            continue
-        score = _matching_score(
-            transaction_type=mapping.transaction_type,
-            category_id=mapping.category_id,
-            account_id=mapping.account_id,
-            payment_method_id=mapping.payment_method_id,
+    score = _candidate_score(
+        AccountingMapping.transaction_type,
+        AccountingMapping.category_id,
+        AccountingMapping.account_id,
+        AccountingMapping.payment_method_id,
+    )
+    return (
+        AccountingMapping.query.filter_by(is_active=True)
+        .filter(
+            or_(AccountingMapping.transaction_type.is_(None), AccountingMapping.transaction_type == transaction.transaction_type),
+            or_(AccountingMapping.category_id.is_(None), AccountingMapping.category_id == transaction.category_id),
+            or_(AccountingMapping.account_id.is_(None), AccountingMapping.account_id == transaction.account_id),
+            or_(AccountingMapping.payment_method_id.is_(None), AccountingMapping.payment_method_id == transaction.payment_method_id),
         )
-        if score > best_score:
-            best_mapping = mapping
-            best_score = score
-    return best_mapping
+        .order_by(score.desc(), AccountingMapping.id.asc())
+        .first()
+    )
 
 
 def _month_bounds(period_date: date) -> tuple[date, date]:
@@ -349,7 +321,21 @@ def budget_snapshot_for_budget(
     if exclude_transaction_id:
         query = query.filter(Transaction.id != exclude_transaction_id)
 
-    actual = sum((_transaction_amount(item) for item in query.all()), Decimal("0"))
+    actual_amount = query.with_entities(
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        Transaction.transaction_type == TransactionType.REVENUE.value,
+                        func.coalesce(Transaction.expected_amount, Transaction.amount, 0),
+                    ),
+                    else_=func.coalesce(Transaction.amount, 0),
+                )
+            ),
+            0,
+        )
+    ).scalar()
+    actual = Decimal(actual_amount or 0)
     projected_total = actual + Decimal(proposed_amount or 0)
     budget_amount = Decimal(budget.amount or 0)
     utilization_percent = int((projected_total / budget_amount) * 100) if budget_amount else 0
@@ -475,6 +461,12 @@ def _apply_transaction_controls(transaction: Transaction, *, strict: bool) -> di
 
     budget_snapshot = None
     if transaction.budget:
+        if strict:
+            transaction.budget = (
+                Budget.query.filter(Budget.id == transaction.budget.id)
+                .with_for_update()
+                .one()
+            )
         budget_snapshot = budget_snapshot_for_budget(
             transaction.budget,
             period_date=transaction.transaction_date,
@@ -567,7 +559,7 @@ def create_transaction_from_form(*, form: TransactionFormLike, transaction_type:
     db.session.flush()
     _save_attachments(item, actor)
     budget_snapshot = _apply_transaction_controls(item, strict=transaction_type == TransactionType.REVENUE.value or not form.save_draft.data)
-    _sync_account_balance(item.account_id)
+    sync_account_balance(item.account_id)
     _record_history(
         item,
         actor=actor,
@@ -621,7 +613,7 @@ def create_simple_revenue(
     )
     db.session.add(item)
     db.session.flush()
-    _sync_account_balance(item.account_id)
+    sync_account_balance(item.account_id)
     _record_history(item, actor=actor, action="create", to_status=item.status)
     record_audit(user_id=actor.id, entity_type="transaction", entity_id=item.id, action="create", new_values=_serialize(item))
     return item
@@ -653,16 +645,27 @@ def create_simple_expense(
         payment_method_id=payment_method_id or None,
         amount=resolved_amount,
         transaction_date=transaction_date,
-        settled_date=transaction_date,
+        settled_date=None,
         reference_number=_normalize_optional_text(reference_number),
         note=_normalize_optional_text(note),
-        status=ExpenseStatus.PAID.value,
+        status=ExpenseStatus.SUBMITTED.value,
         submitted_by_id=actor.id,
     )
     db.session.add(item)
     db.session.flush()
-    _sync_account_balance(item.account_id)
-    _record_history(item, actor=actor, action="create", to_status=item.status)
+    budget_snapshot = _apply_transaction_controls(item, strict=True)
+    _record_history(
+        item,
+        actor=actor,
+        action="create",
+        to_status=item.status,
+        metadata={
+            "budget": item.budget.name if item.budget else None,
+            "policy": item.spend_policy.name if item.spend_policy else None,
+            "mapping": item.accounting_mapping.name if item.accounting_mapping else None,
+            "over_budget": bool(budget_snapshot and budget_snapshot["over_budget"]),
+        },
+    )
     record_audit(user_id=actor.id, entity_type="transaction", entity_id=item.id, action="create", new_values=_serialize(item))
     return item
 
@@ -706,9 +709,9 @@ def update_transaction_from_form(*, transaction: Transaction, form: TransactionF
         transaction,
         strict=transaction.transaction_type == TransactionType.REVENUE.value or not form.save_draft.data,
     )
-    _sync_account_balance(previous_account_id)
+    sync_account_balance(previous_account_id)
     if transaction.account_id != previous_account_id:
-        _sync_account_balance(transaction.account_id)
+        sync_account_balance(transaction.account_id)
     _record_history(
         transaction,
         actor=actor,
@@ -815,7 +818,7 @@ def mark_expense_paid(transaction: Transaction, actor: User, settled_date: date 
     transaction.status = ExpenseStatus.PAID.value
     transaction.settled_date = resolved_settled_date
     transaction.approved_by_id = actor.id
-    _sync_account_balance(transaction.account_id)
+    sync_account_balance(transaction.account_id)
     _record_history(transaction, actor=actor, action="mark_paid", from_status=previous_status, to_status=transaction.status)
     record_audit(user_id=actor.id, entity_type="transaction", entity_id=transaction.id, action="mark_paid", old_values=previous, new_values=_serialize(transaction))
 
@@ -830,7 +833,7 @@ def mark_revenue_received(transaction: Transaction, actor: User, amount: Decimal
     transaction.received_amount = received
     transaction.settled_date = settled_date or date.today()
     transaction.status = derive_revenue_status(expected, received, transaction.due_date, date.today())
-    _sync_account_balance(transaction.account_id)
+    sync_account_balance(transaction.account_id)
     _record_history(transaction, actor=actor, action="mark_received", from_status=previous_status, to_status=transaction.status)
     record_audit(user_id=actor.id, entity_type="transaction", entity_id=transaction.id, action="mark_received", old_values=previous, new_values=_serialize(transaction))
 
@@ -851,7 +854,7 @@ def soft_delete_draft(transaction: Transaction, actor: User) -> None:
 def recent_transactions(user: User, limit: int = 8) -> list[Transaction]:
     return (
         visible_transactions_query(user)
-        .options(*_transaction_display_options())
+        .options(*_list_transaction_display_options())
         .order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())
         .limit(limit)
         .all()
@@ -871,7 +874,15 @@ def pending_approvals() -> list[Transaction]:
 
 
 def export_transactions_csv(*, user: User, transaction_type: str | None = None, filters: TransactionFilters | None = None) -> str:
-    items = apply_filters(visible_transactions_query(user, transaction_type), filters or TransactionFilters()).order_by(Transaction.transaction_date.desc()).all()
+    limit = current_app.config["MAX_EXPORT_ROWS"]
+    items = (
+        apply_filters(visible_transactions_query(user, transaction_type), filters or TransactionFilters())
+        .order_by(Transaction.transaction_date.desc())
+        .limit(limit + 1)
+        .all()
+    )
+    if len(items) > limit:
+        raise ServiceError(f"Export exceeds the maximum allowed size of {limit} rows. Narrow the filters and try again.")
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow(
@@ -899,20 +910,20 @@ def export_transactions_csv(*, user: User, transaction_type: str | None = None, 
             [
                 item.id,
                 item.transaction_type,
-                item.title,
-                item.counterparty or "",
-                item.status,
+                safe_csv_cell(item.title),
+                safe_csv_cell(item.counterparty or ""),
+                safe_csv_cell(item.status),
                 item.amount,
                 item.expected_amount or "",
                 item.received_amount or "",
                 item.transaction_date,
                 item.due_date or "",
                 item.settled_date or "",
-                item.spend_policy.name if item.spend_policy else "",
-                item.budget.name if item.budget else "",
-                item.accounting_gl_code or "",
-                item.accounting_cost_center or "",
-                item.accounting_project_code or "",
+                safe_csv_cell(item.spend_policy.name if item.spend_policy else ""),
+                safe_csv_cell(item.budget.name if item.budget else ""),
+                safe_csv_cell(item.accounting_gl_code or ""),
+                safe_csv_cell(item.accounting_cost_center or ""),
+                safe_csv_cell(item.accounting_project_code or ""),
             ]
         )
     return buffer.getvalue()

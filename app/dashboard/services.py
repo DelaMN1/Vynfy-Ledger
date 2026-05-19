@@ -3,6 +3,9 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+from sqlalchemy import case, func
+
+from app.extensions import db
 from app.models import Account, Transaction, User
 from app.transactions.services import recent_transactions, visible_transactions_query
 from app.utils.enums import EXPENSE_SETTLED_STATUSES, REVENUE_SETTLED_STATUSES, TransactionType
@@ -20,17 +23,41 @@ def _month_bounds(today: date) -> tuple[date, date]:
 def dashboard_context(user: User) -> dict[str, object]:
     today = date.today()
     start_date, next_month_start = _month_bounds(today)
-    records = visible_transactions_query(user).filter(Transaction.transaction_date >= start_date, Transaction.transaction_date < next_month_start).all()
-    revenue_total = sum(
-        Decimal(item.received_amount or 0)
-        for item in records
-        if item.transaction_type == TransactionType.REVENUE.value and item.status in REVENUE_SETTLED_STATUSES
+    summary_row = (
+        visible_transactions_query(user)
+        .filter(Transaction.transaction_date >= start_date, Transaction.transaction_date < next_month_start)
+        .with_entities(
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            (Transaction.transaction_type == TransactionType.REVENUE.value)
+                            & Transaction.status.in_(REVENUE_SETTLED_STATUSES),
+                            Transaction.received_amount,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            (Transaction.transaction_type == TransactionType.EXPENSE.value)
+                            & Transaction.status.in_(EXPENSE_SETTLED_STATUSES),
+                            Transaction.amount,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+        )
+        .one()
     )
-    expense_total = sum(
-        Decimal(item.amount or 0)
-        for item in records
-        if item.transaction_type == TransactionType.EXPENSE.value and item.status in EXPENSE_SETTLED_STATUSES
-    )
+    revenue_total = Decimal(summary_row[0] or 0)
+    expense_total = Decimal(summary_row[1] or 0)
     return {
         "month_label": start_date.strftime("%B %Y"),
         "summary": {

@@ -32,8 +32,14 @@ services:
         value: "false"
       - key: SELF_SERVICE_PASSWORD_RESET_ENABLED
         value: "false"
+      - key: BOOTSTRAP_SETUP_ENABLED
+        value: "true"
+      - key: BOOTSTRAP_SETUP_TOKEN
+        sync: false
       - key: RATELIMIT_STORAGE_URI
         sync: false
+      - key: MAX_EXPORT_ROWS
+        value: "5000"
       - key: COMPANY_NAME
         value: Vynfy
       - key: MAIL_FROM

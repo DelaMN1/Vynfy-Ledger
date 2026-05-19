@@ -14,6 +14,9 @@ from app.dashboard.routes import dashboard_bp
 from app.extensions import csrf, db, limiter, migrate
 from app.reconciliation.routes import reconciliation_bp
 from app.reports.routes import reports_bp
+from app.setup.cli import register_cli
+from app.setup.routes import setup_bp
+from app.setup.services import bootstrap_state_or_none, setup_state_or_none
 from app.settings.routes import settings_bp
 from app.transactions.routes import transactions_bp
 from app.utils.auth import apply_auth_cookie, load_user_from_session
@@ -25,12 +28,14 @@ PUBLIC_ENDPOINTS = {
     "auth.register",
     "auth.forgot_password",
     "auth.reset_password",
+    "setup.initialize",
     "static",
 }
 
 AUTH_AWARE_PUBLIC_ENDPOINTS = {
     "index",
     "auth.login",
+    "setup.initialize",
 }
 
 
@@ -60,6 +65,7 @@ def create_app(config_name: str | None = None) -> Flask:
     register_blueprints(app)
     register_errors(app)
     register_shell_context(app)
+    register_cli(app)
     register_cli_commands(app)
 
     @app.get("/")
@@ -113,7 +119,7 @@ def register_hooks(app: Flask) -> None:
             "; ".join(
                 [
                     "default-src 'self'",
-                    f"script-src 'self' 'nonce-{csp_nonce}' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com",
+                    f"script-src 'self' 'nonce-{csp_nonce}' https://cdn.tailwindcss.com https://cdn.jsdelivr.net",
                     "style-src 'self' 'unsafe-inline'",
                     "img-src 'self' data:",
                     "font-src 'self' https://cdn.jsdelivr.net",
@@ -147,10 +153,16 @@ def register_hooks(app: Flask) -> None:
 
     @app.context_processor
     def inject_globals():
+        setup_state = None
+        if request.endpoint in {"auth.login", "setup.initialize"}:
+            setup_state = bootstrap_state_or_none()
+        elif getattr(g, "current_user", None):
+            setup_state = setup_state_or_none()
         return {
             "current_user": getattr(g, "current_user", None),
             "app_name": app.config["APP_NAME"],
             "csp_nonce": getattr(g, "csp_nonce", ""),
+            "setup_state": setup_state,
         }
 
 
@@ -166,6 +178,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(transactions_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(reconciliation_bp)
+    app.register_blueprint(setup_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(admin_bp)
 

@@ -86,6 +86,37 @@
           <p class="mt-2 text-slate-700 text-break">{{ transaction.note }}</p>
         </div>
       {% endif %}
+      <div class="mt-8 rounded-2xl bg-slate-50 p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="text-sm font-medium text-slate-500">Status history</p>
+            <p class="mt-1 text-sm text-slate-500">Track who changed this record and when.</p>
+          </div>
+        </div>
+        <div class="mt-4 space-y-3">
+          {% for item in transaction.status_history %}
+            <div class="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+              <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p class="text-sm font-medium text-slate-900">{{ item.action|replace('_', ' ')|title }}</p>
+                  <p class="mt-1 text-sm text-slate-500">
+                    {{ item.changed_by.full_name if item.changed_by else "System" }}
+                    {% if item.from_status or item.to_status %}
+                      · {{ item.from_status or "none" }} → {{ item.to_status or "none" }}
+                    {% endif %}
+                  </p>
+                </div>
+                <p class="text-sm text-slate-500">{{ item.created_at.strftime('%d %b %Y %H:%M') }}</p>
+              </div>
+              {% if item.note %}
+                <p class="mt-3 text-sm text-slate-600 text-break">{{ item.note }}</p>
+              {% endif %}
+            </div>
+          {% else %}
+            <p class="text-sm text-slate-500">No status history recorded yet.</p>
+          {% endfor %}
+        </div>
+      </div>
     </div>
 
     <div class="flex flex-wrap gap-3">

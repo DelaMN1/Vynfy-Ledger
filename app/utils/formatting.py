@@ -14,6 +14,17 @@ def yes_no(value: bool) -> str:
     return "Yes" if value else "No"
 
 
+def safe_csv_cell(value: object) -> object:
+    if not isinstance(value, str):
+        return value
+    if not value:
+        return value
+    stripped = value.lstrip()
+    if stripped.startswith(("=", "+", "-", "@")):
+        return f"'{value}"
+    return value
+
+
 def status_badge_class(status: str) -> str:
     for tone, statuses in STATUS_BADGE_GROUPS.items():
         if status in statuses:

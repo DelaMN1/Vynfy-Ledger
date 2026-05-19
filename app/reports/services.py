@@ -3,8 +3,11 @@ from __future__ import annotations
 from collections import defaultdict
 from decimal import Decimal
 
+from flask import current_app
+
 from app.models import Transaction, User
 from app.transactions.services import apply_filters, export_transactions_csv, visible_transactions_query
+from app.utils.formatting import safe_csv_cell
 from app.utils.enums import (
     EXPENSE_PAYABLE_STATUSES,
     EXPENSE_SETTLED_STATUSES,
@@ -33,7 +36,10 @@ def normalize_report_key(report_key: str) -> str:
 
 def build_report(user: User, report_key: str, filters: TransactionFilters) -> ReportResult:
     rows: defaultdict[str, Decimal] = defaultdict(Decimal)
-    items = apply_filters(visible_transactions_query(user), filters).order_by(Transaction.transaction_date.asc()).all()
+    limit = current_app.config["MAX_EXPORT_ROWS"]
+    items = apply_filters(visible_transactions_query(user), filters).order_by(Transaction.transaction_date.asc()).limit(limit + 1).all()
+    if len(items) > limit:
+        raise ValueError(f"Report exceeds the maximum allowed size of {limit} rows. Narrow the filters and try again.")
     for item in items:
         month_label = item.transaction_date.strftime("%b %Y")
         if report_key == "revenue_monthly" and item.transaction_type == TransactionType.REVENUE.value:
@@ -73,6 +79,6 @@ def export_report_csv(user: User, report_key: str, filters: TransactionFilters) 
     report = build_report(user, report_key, filters)
     if report_key in report_keys:
         lines = ["label,value"]
-        lines.extend(f"{label},{value}" for label, value in report["rows"])
+        lines.extend(f"{safe_csv_cell(label)},{value}" for label, value in report["rows"])
         return "\n".join(lines)
     return export_transactions_csv(user=user, filters=filters)

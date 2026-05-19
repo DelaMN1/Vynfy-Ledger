@@ -4,7 +4,8 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from app.extensions import db
-from app.models import AccountingMapping, Budget, Transaction
+from app.models import AccountingMapping, Budget, SpendPolicy, Transaction, User
+from app.transactions.services import export_transactions_csv
 from app.utils.enums import ExpenseStatus, RevenueStatus, TransactionType
 
 
@@ -57,8 +58,8 @@ def test_create_expense_entry_with_minimal_fields(client, app, sample_data, logi
     with app.app_context():
         item = Transaction.query.filter_by(title="Office internet", transaction_type=TransactionType.EXPENSE.value).first()
         assert item is not None
-        assert item.status == ExpenseStatus.PAID.value
-        assert item.settled_date == date(2026, 4, 5)
+        assert item.status == ExpenseStatus.SUBMITTED.value
+        assert item.settled_date is None
         assert item.payment_method_id == sample_data["payment_method_id"]
         assert item.reference_number == "ISP-0426"
         assert item.note == "Monthly service charge"
@@ -117,8 +118,30 @@ def test_transaction_detail_is_simplified(client, sample_data, login):
     assert b"Category" in response.data
     assert b"Account" in response.data
     assert b"Approval comments" not in response.data
-    assert b"Status history" not in response.data
+    assert b"Status history" in response.data
     assert b"Mark paid" not in response.data
+
+
+def test_simple_entry_is_blocked_until_setup_complete(client, app, login):
+    with app.app_context():
+        admin = User(
+            full_name="Admin User",
+            email="admin@example.com",
+            role="admin",
+            email_verified=True,
+            can_create_revenue=True,
+            can_create_expense=True,
+        )
+        admin.set_password("AdminPassword123")
+        db.session.add(admin)
+        db.session.commit()
+
+    login("admin@example.com", "AdminPassword123")
+    response = client.get("/expenses/new", follow_redirects=False)
+
+    assert response.status_code == 200
+    assert b"Complete setup before continuing" not in response.data
+    assert b"Expense entry is unavailable until setup is complete" in response.data
 
 
 def test_revenue_mark_received_still_works_for_legacy_flow(client, app, sample_data, login):
@@ -135,28 +158,15 @@ def test_revenue_mark_received_still_works_for_legacy_flow(client, app, sample_d
         assert item.status == RevenueStatus.RECEIVED.value
 
 
-def test_expense_create_skips_heavy_control_resolution_for_simplified_flow(client, app, sample_data, login):
+def test_simple_expense_enforces_policy_controls(client, app, sample_data, login):
     with app.app_context():
         db.session.add(
-            Budget(
-                name="Ops monthly",
+            SpendPolicy(
+                name="Ops Policy",
                 transaction_type=TransactionType.EXPENSE.value,
                 category_id=sample_data["expense_category_id"],
                 account_id=sample_data["account_id"],
-                owner_id=sample_data["staff_id"],
-                amount=5000,
-                alert_percent=80,
-            )
-        )
-        db.session.add(
-            AccountingMapping(
-                name="Ops GL",
-                transaction_type=TransactionType.EXPENSE.value,
-                category_id=sample_data["expense_category_id"],
-                account_id=sample_data["account_id"],
-                gl_code="6000",
-                cost_center="OPS",
-                project_code="HQ",
+                require_attachment=True,
             )
         )
         db.session.commit()
@@ -173,11 +183,56 @@ def test_expense_create_skips_heavy_control_resolution_for_simplified_flow(clien
         follow_redirects=False,
     )
 
-    assert response.status_code == 302
+    assert response.status_code == 200
+    assert b"requires at least one attachment before submission" in response.data
     with app.app_context():
         item = Transaction.query.filter_by(title="Printer supplies").first()
-        assert item is not None
-        assert item.budget is None
-        assert item.accounting_gl_code is None
-        assert item.accounting_cost_center is None
-        assert item.accounting_project_code is None
+        assert item is None
+
+
+def test_simple_expense_requires_explicit_permission(client, sample_data, login):
+    login("other@example.com", "OtherPassword123")
+    response = client.get("/expenses/new", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/transactions")
+
+
+def test_transaction_export_sanitizes_formula_cells(app, sample_data):
+    with app.app_context():
+        admin = db.session.get(User, sample_data["admin_id"])
+        assert admin is not None
+        item = Transaction(
+            transaction_type=TransactionType.REVENUE.value,
+            title="=SUM(1,1)",
+            counterparty="@attacker",
+            category_id=sample_data["revenue_category_id"],
+            account_id=sample_data["account_id"],
+            amount=Decimal("25.00"),
+            expected_amount=Decimal("25.00"),
+            received_amount=Decimal("25.00"),
+            transaction_date=date.today(),
+            settled_date=date.today(),
+            status=RevenueStatus.RECEIVED.value,
+            submitted_by_id=sample_data["admin_id"],
+        )
+        db.session.add(item)
+        db.session.commit()
+
+        content = export_transactions_csv(user=admin, transaction_type=TransactionType.REVENUE.value)
+
+    assert "'=SUM(1,1)" in content
+    assert "'@attacker" in content
+
+
+def test_transaction_export_enforces_row_limit(app, sample_data):
+    app.config["MAX_EXPORT_ROWS"] = 0
+    with app.app_context():
+        admin = db.session.get(User, sample_data["admin_id"])
+        assert admin is not None
+        try:
+            export_transactions_csv(user=admin)
+        except ValueError as exc:
+            assert "maximum allowed size" in str(exc)
+        else:
+            raise AssertionError("Expected export row limit to be enforced.")

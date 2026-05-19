@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% import "partials/filter_toolbar.html" as filter_toolbar %}
 {% block page_title %}Reports{% endblock %}
+{% block head_scripts %}
+  <script nonce="{{ csp_nonce }}" src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+{% endblock %}
 {% block content %}
   {% set has_advanced_filters = request.args.get('category_id') or request.args.get('account_id') or request.args.get('owner_id') %}
   {% set report_select %}
@@ -72,11 +75,19 @@
       </div>
     </div>
   </div>
+{% endblock %}
+{% block page_scripts %}
   <script nonce="{{ csp_nonce }}">
-    new Chart(document.getElementById("report-chart"), {
-      type: "bar",
-      data: { labels: {{ report["labels"]|tojson }}, datasets: [{ label: "Value", data: {{ report["values"]|tojson }}, backgroundColor: "#0f172a" }] },
-      options: { plugins: { legend: { display: false } } }
+    window.addEventListener("load", () => {
+      const target = document.getElementById("report-chart");
+      if (!target || typeof Chart === "undefined") {
+        return;
+      }
+      new Chart(target, {
+        type: "bar",
+        data: { labels: {{ report["labels"]|tojson }}, datasets: [{ label: "Value", data: {{ report["values"]|tojson }}, backgroundColor: "#0f172a" }] },
+        options: { plugins: { legend: { display: false } } }
+      });
     });
   </script>
 {% endblock %}
