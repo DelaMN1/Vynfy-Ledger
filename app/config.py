@@ -112,8 +112,21 @@ class Config:
     BOOTSTRAP_SETUP_TOKEN = (os.getenv("BOOTSTRAP_SETUP_TOKEN") or "").strip() or None
     MAX_EXPORT_ROWS = int(os.getenv("MAX_EXPORT_ROWS", "5000"))
     DEFAULT_PAGE_SIZE = 10
+    ADMIN_PAGE_SIZE = int(os.getenv("ADMIN_PAGE_SIZE", "25"))
+    SETUP_STATUS_CACHE_SECONDS = int(os.getenv("SETUP_STATUS_CACHE_SECONDS", "5"))
     DASHBOARD_MONTHS = 6
     COMPANY_NAME = os.getenv("COMPANY_NAME", "Vynfy")
+    REQUEST_TIMING_LOG_ENABLED = _env_flag(
+        "REQUEST_TIMING_LOG_ENABLED",
+        default_in_production=False,
+        default_outside_production=True,
+    )
+    REQUEST_TIMING_SLOW_MS = int(os.getenv("REQUEST_TIMING_SLOW_MS", "400"))
+    REQUEST_TIMING_LOG_ALL = _env_flag(
+        "REQUEST_TIMING_LOG_ALL",
+        default_in_production=False,
+        default_outside_production=False,
+    )
 
 
 class DevelopmentConfig(Config):

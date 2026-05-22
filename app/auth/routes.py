@@ -18,9 +18,7 @@ from app.extensions import db, limiter
 auth_bp = Blueprint("auth", __name__)
 REGISTRATION_DISABLED_MESSAGE = "Self-service registration is unavailable. Ask an admin to create your account."
 PASSWORD_RESET_DISABLED_MESSAGE = "Self-service password reset is unavailable. Contact an admin to reset your password."
-PASSWORD_RESET_REQUESTED_MESSAGE = (
-    "If an active account matches that email, reset instructions will be delivered through your configured recovery channel."
-)
+PASSWORD_RESET_REQUESTED_MESSAGE = "If an active account matches that email, reset instructions will be sent."
 
 
 def _safe_next_url(raw_value: str | None) -> str:
@@ -44,7 +42,7 @@ def login():
         try:
             authenticate_user(email=form.email.data, password=form.password.data)
             db.session.commit()
-            flash("Signed in successfully.", "success")
+            flash("Login successful.", "success")
             return redirect(_safe_next_url(request.args.get("next")))
         except ValueError as exc:
             db.session.commit()
@@ -64,7 +62,7 @@ def register():
         try:
             register_user(full_name=form.full_name.data, email=form.email.data, password=form.password.data)
             db.session.commit()
-            flash("Account created. You can sign in now.", "success")
+            flash("Account created.", "success")
             return redirect(url_for("auth.login"))
         except ValueError as exc:
             db.session.rollback()
@@ -105,7 +103,7 @@ def reset_password(token: str):
         try:
             reset_user_password(token, form.password.data)
             db.session.commit()
-            flash("Password updated. Sign in with your new password.", "success")
+            flash("Password updated.", "success")
             return redirect(url_for("auth.login"))
         except ValueError as exc:
             db.session.rollback()
@@ -117,5 +115,5 @@ def reset_password(token: str):
 def logout():
     logout_current_user()
     db.session.commit()
-    flash("Signed out successfully.", "success")
+    flash("Logged out.", "success")
     return redirect(url_for("auth.login"))

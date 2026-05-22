@@ -37,6 +37,8 @@ def _persist_named_item(item: NamedModelT, *, actor: User, entity_type: str, con
 
 
 def create_category(*, name: str, category_type: str, color: str, description: str | None, actor: User) -> Category:
+    from app.setup.services import invalidate_setup_status_cache
+
     normalized_name = _normalized_name(name)
     normalized_description = (description or "").strip() or None
     existing = _find_named_item(Category, normalized_name)
@@ -46,7 +48,9 @@ def create_category(*, name: str, category_type: str, color: str, description: s
         raise ServiceError("A category with that name already exists.")
 
     category = Category(name=normalized_name, type=category_type, color=color, description=normalized_description)
-    return _persist_named_item(category, actor=actor, entity_type="category", conflict_message="A category with that name already exists.")
+    created = _persist_named_item(category, actor=actor, entity_type="category", conflict_message="A category with that name already exists.")
+    invalidate_setup_status_cache()
+    return created
 
 
 def create_account(
@@ -57,6 +61,8 @@ def create_account(
     currency_code: str,
     actor: User,
 ) -> Account:
+    from app.setup.services import invalidate_setup_status_cache
+
     normalized_name = _normalized_name(name)
     normalized_currency = currency_code.strip().upper()
     opening = Decimal(opening_balance)
@@ -73,17 +79,23 @@ def create_account(
         current_balance_cached=opening,
         currency_code=normalized_currency,
     )
-    return _persist_named_item(account, actor=actor, entity_type="account", conflict_message="An account with that name already exists.")
+    created = _persist_named_item(account, actor=actor, entity_type="account", conflict_message="An account with that name already exists.")
+    invalidate_setup_status_cache()
+    return created
 
 
 def create_payment_method(*, name: str, actor: User) -> PaymentMethod:
+    from app.setup.services import invalidate_setup_status_cache
+
     normalized_name = _normalized_name(name)
     existing = _find_named_item(PaymentMethod, normalized_name)
     if existing:
         return existing
 
     method = PaymentMethod(name=normalized_name)
-    return _persist_named_item(method, actor=actor, entity_type="payment_method", conflict_message="A payment method with that name already exists.")
+    created = _persist_named_item(method, actor=actor, entity_type="payment_method", conflict_message="A payment method with that name already exists.")
+    invalidate_setup_status_cache()
+    return created
 
 
 def create_budget(

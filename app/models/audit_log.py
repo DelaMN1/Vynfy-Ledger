@@ -6,6 +6,9 @@ from app.models.base import TimestampMixin
 
 class AuditLog(TimestampMixin, db.Model):
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        db.Index("ix_audit_logs_entity_type_entity_id", "entity_type", "entity_id"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"))

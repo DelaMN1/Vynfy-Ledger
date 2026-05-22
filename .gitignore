@@ -12,3 +12,5 @@ instance/outbox/*
 *.pyc
 .coverage
 htmlcov/
+node_modules/
+.npm-cache/

@@ -1,0 +1,48 @@
+{% macro page_header(title, subtitle="", kicker="") -%}
+  <div class="page-header">
+    <div class="page-header__body">
+      {% if kicker %}
+        <p class="page-kicker">{{ kicker }}</p>
+      {% endif %}
+      <h1 class="page-title">{{ title }}</h1>
+      {% if subtitle %}
+        <p class="page-subtitle">{{ subtitle }}</p>
+      {% endif %}
+    </div>
+    {% if caller %}
+      <div class="page-header__actions">
+        {{ caller() }}
+      </div>
+    {% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro metric_card(label, value, supporting="", tone="neutral", glyph="") -%}
+  <div class="metric-card metric-card--{{ tone }}">
+    <div class="metric-card__content">
+      <p class="metric-card__label">{{ label }}</p>
+      <p class="metric-card__value">{{ value }}</p>
+      {% if supporting %}
+        <p class="metric-card__support">{{ supporting }}</p>
+      {% endif %}
+    </div>
+    <span class="metric-card__icon" aria-hidden="true">{{ glyph or label[:2]|upper }}</span>
+  </div>
+{%- endmacro %}
+
+{% macro empty_state(title, body, primary_label="", primary_url="", secondary_label="", secondary_url="") -%}
+  <div class="empty-state">
+    <div>
+      <p class="empty-state__title">{{ title }}</p>
+      <p class="empty-state__body">{{ body }}</p>
+    </div>
+    {% if primary_label %}
+      <div class="empty-state__actions">
+        <a class="btn-primary" href="{{ primary_url }}">{{ primary_label }}</a>
+        {% if secondary_label %}
+          <a class="btn-secondary" href="{{ secondary_url }}">{{ secondary_label }}</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+{%- endmacro %}

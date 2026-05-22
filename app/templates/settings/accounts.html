@@ -1,29 +1,30 @@
 {% extends "base.html" %}
 {% block page_title %}Settings - Accounts{% endblock %}
 {% block content %}
-  <div class="space-y-5">
+  <div class="space-y-6">
     {% include "settings/_nav.html" %}
-    <div class="grid gap-5 xl:grid-cols-[0.88fr_1.12fr]">
-      <form class="glass-card field-shell rounded-[2rem] p-7" method="post">
+    <div class="split-layout xl:grid-cols-[0.88fr_1.12fr]">
+      <form class="surface-card field-shell p-7" method="post">
         {{ form.hidden_tag() }}
-        <p class="section-kicker">Cash Structure</p>
-        <h3 class="mt-2 text-2xl font-semibold">Create account</h3>
-        <p class="mt-2 text-sm leading-6 text-slate-600">Set up the cash and wallet sources that feed balances, reconciliation, and treasury visibility.</p>
+        <p class="table-card__eyebrow">Cash Structure</p>
+        <h3 class="table-card__title">Create account</h3>
+        <p class="table-card__subtitle">Set up the cash and wallet sources that feed balances, reconciliation, and treasury visibility.</p>
         <div class="mt-6 space-y-4">
           <div>{{ form.name.label(class="mb-2 block text-sm font-medium") }}{{ form.name(class="w-full px-4 py-3") }}</div>
           <div>{{ form.type.label(class="mb-2 block text-sm font-medium") }}{{ form.type(class="w-full px-4 py-3") }}</div>
           <div>{{ form.opening_balance.label(class="mb-2 block text-sm font-medium") }}{{ form.opening_balance(class="w-full px-4 py-3") }}</div>
           <div>{{ form.currency_code.label(class="mb-2 block text-sm font-medium") }}{{ form.currency_code(class="w-full px-4 py-3") }}</div>
-          <button class="action-pill bg-slate-900 text-sm font-medium text-white" type="submit">Save account</button>
+          <button class="btn-primary" type="submit">Save account</button>
         </div>
       </form>
-      <div class="glass-card rounded-[2rem] p-7">
+      <div class="surface-card p-7">
         <div class="stack-header">
           <div class="stack-title">
-            <p class="section-kicker">Ledger Accounts</p>
-            <h3 class="mt-2 text-2xl font-semibold">Live account stack</h3>
+            <p class="table-card__eyebrow">Ledger Accounts</p>
+            <h3 class="table-card__title">Live account stack</h3>
+            <p class="table-card__subtitle">Cached and recomputed balances for every configured treasury source.</p>
           </div>
-          <div class="count-pill bg-slate-100 text-sm text-slate-600">{{ balance_snapshots|length }} accounts</div>
+          <div class="count-pill">{{ pagination.total }} accounts</div>
         </div>
         <div class="mt-6 data-stack">
           {% for snapshot in balance_snapshots %}
@@ -32,28 +33,29 @@
               <div class="split-row">
                 <div class="split-row__primary">
                   <p class="font-medium text-break">{{ item.name }}</p>
-                  <p class="mt-1 text-sm text-slate-500">{{ item.type|replace('_', ' ')|title }}</p>
-                  <div class="mt-3 flex flex-wrap gap-2 text-xs">
-                    <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">Opening {{ item.opening_balance|currency }}</span>
-                    <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">Cached {{ snapshot.cached_balance|currency }}</span>
-                    <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">Recomputed {{ snapshot.recomputed_balance|currency }}</span>
+                  <p class="mt-1 table-muted">{{ item.type|replace('_', ' ')|title }}</p>
+                  <div class="inline-badges mt-3">
+                    <span class="badge-soft">Opening {{ item.opening_balance|currency }}</span>
+                    <span class="badge-soft">Cached {{ snapshot.cached_balance|currency }}</span>
+                    <span class="badge-soft">Recomputed {{ snapshot.recomputed_balance|currency }}</span>
                     {% if snapshot.is_in_sync %}
-                      <span class="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700">In sync</span>
+                      <span class="status-pill bg-emerald-100 text-emerald-900">In Sync</span>
                     {% else %}
-                      <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-700">Drift {{ snapshot.drift|currency }}</span>
+                      <span class="status-pill bg-amber-100 text-amber-900">Drift {{ snapshot.drift|currency }}</span>
                     {% endif %}
                   </div>
                 </div>
                 <div class="split-row__secondary text-left sm:text-right">
                   <p class="font-medium">{{ snapshot.cached_balance|currency }}</p>
-                  <p class="mt-1 text-sm text-slate-500">{{ item.currency_code }}</p>
+                  <p class="mt-1 table-muted">{{ item.currency_code }}</p>
                 </div>
               </div>
             </div>
           {% else %}
-            <p class="text-slate-500">No accounts yet.</p>
+            <p class="table-muted">No accounts yet.</p>
           {% endfor %}
         </div>
+        {% include "partials/pagination.html" %}
       </div>
     </div>
   </div>

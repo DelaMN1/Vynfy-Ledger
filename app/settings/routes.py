@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from flask import Blueprint, Response, abort, flash, g, redirect, render_template, url_for
+from flask import Blueprint, Response, abort, current_app, flash, g, redirect, render_template, url_for
 from sqlalchemy.orm import joinedload
 
 from app.auth.forms import AdminUserForm
@@ -14,9 +14,14 @@ from app.settings.forms import AccountForm, AccountingMappingForm, BudgetForm, C
 from app.settings.services import create_account, create_accounting_mapping, create_budget, create_category, create_payment_method, create_spend_policy
 from app.utils.decorators import admin_required
 from app.utils.exceptions import ServiceError
+from app.utils.pagination import current_page
 
 
 settings_bp = Blueprint("settings", __name__)
+
+
+def _admin_paginate(query):
+    return query.paginate(page=current_page(), per_page=current_app.config["ADMIN_PAGE_SIZE"], error_out=False)
 
 
 def _assign_finance_rule_choices(form: BudgetForm | SpendPolicyForm | AccountingMappingForm) -> None:
@@ -58,14 +63,16 @@ def categories():
         )
         if response:
             return response
-    return render_template("settings/categories.html", form=form, categories=Category.query.order_by(Category.name.asc()).all())
+    pagination = _admin_paginate(Category.query.order_by(Category.name.asc()))
+    return render_template("settings/categories.html", form=form, categories=pagination.items, pagination=pagination)
 
 
 @settings_bp.route("/settings/accounts", methods=["GET", "POST"])
 @admin_required
 def accounts():
     form = AccountForm()
-    balance_snapshots = account_balance_snapshots()
+    pagination = _admin_paginate(Account.query.order_by(Account.name.asc()))
+    balance_snapshots = account_balance_snapshots(pagination.items)
     if form.validate_on_submit():
         response = _submit_settings_change(
             success_message="Account saved.",
@@ -80,7 +87,7 @@ def accounts():
         )
         if response:
             return response
-    return render_template("settings/accounts.html", form=form, balance_snapshots=balance_snapshots)
+    return render_template("settings/accounts.html", form=form, balance_snapshots=balance_snapshots, pagination=pagination)
 
 
 @settings_bp.route("/settings/payment-methods", methods=["GET", "POST"])
@@ -95,7 +102,8 @@ def payment_methods():
         )
         if response:
             return response
-    return render_template("settings/payment_methods.html", form=form, methods=PaymentMethod.query.order_by(PaymentMethod.name.asc()).all())
+    pagination = _admin_paginate(PaymentMethod.query.order_by(PaymentMethod.name.asc()))
+    return render_template("settings/payment_methods.html", form=form, methods=pagination.items, pagination=pagination)
 
 
 @settings_bp.route("/settings/users", methods=["GET", "POST"])
@@ -120,11 +128,13 @@ def users():
         )
         if response:
             return response
+    pagination = _admin_paginate(User.query.order_by(User.full_name.asc()))
     return render_template(
         "settings/users.html",
         form=form,
         user_role_form=user_role_form,
-        users=User.query.order_by(User.full_name.asc()).all(),
+        users=pagination.items,
+        pagination=pagination,
     )
 
 
@@ -173,12 +183,11 @@ def budgets():
         )
         if response:
             return response
-    budgets = (
+    pagination = _admin_paginate(
         Budget.query.options(joinedload(Budget.category), joinedload(Budget.account), joinedload(Budget.owner))
         .order_by(Budget.name.asc())
-        .all()
     )
-    return render_template("settings/budgets.html", form=form, budgets=budgets)
+    return render_template("settings/budgets.html", form=form, budgets=pagination.items, pagination=pagination)
 
 
 @settings_bp.route("/settings/policies", methods=["GET", "POST"])
@@ -206,7 +215,8 @@ def policies():
         )
         if response:
             return response
-    return render_template("settings/policies.html", form=form, policies=SpendPolicy.query.order_by(SpendPolicy.name.asc()).all())
+    pagination = _admin_paginate(SpendPolicy.query.order_by(SpendPolicy.name.asc()))
+    return render_template("settings/policies.html", form=form, policies=pagination.items, pagination=pagination)
 
 
 @settings_bp.route("/settings/accounting-mappings", methods=["GET", "POST"])
@@ -232,8 +242,10 @@ def accounting_mappings():
         )
         if response:
             return response
+    pagination = _admin_paginate(AccountingMapping.query.order_by(AccountingMapping.name.asc()))
     return render_template(
         "settings/accounting_mappings.html",
         form=form,
-        mappings=AccountingMapping.query.order_by(AccountingMapping.name.asc()).all(),
+        mappings=pagination.items,
+        pagination=pagination,
     )

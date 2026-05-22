@@ -110,6 +110,8 @@ def register_user(
 
 
 def bootstrap_admin_user(*, full_name: str, email: str, password: str) -> User:
+    from app.setup.services import invalidate_setup_status_cache
+
     if User.query.filter_by(role=Role.ADMIN.value, is_active=True).first():
         raise ServiceError("Bootstrap setup is no longer available.")
 
@@ -130,6 +132,7 @@ def bootstrap_admin_user(*, full_name: str, email: str, password: str) -> User:
         action="bootstrap_create_admin",
         new_values={"email": user.email, "role": user.role},
     )
+    invalidate_setup_status_cache()
 
     return user
 
@@ -145,6 +148,8 @@ def create_user_by_admin(
     can_create_expense: bool,
     is_active: bool,
 ) -> User:
+    from app.setup.services import invalidate_setup_status_cache
+
     user = _build_user(
         full_name=full_name,
         email=email,
@@ -165,11 +170,14 @@ def create_user_by_admin(
             "is_active": is_active,
         },
     )
+    invalidate_setup_status_cache()
 
     return user
 
 
 def update_user_role(*, actor: User, user: User, role: str) -> User:
+    from app.setup.services import invalidate_setup_status_cache
+
     if not actor.is_admin:
         raise ServiceError("Only admins can update user roles.")
 
@@ -206,6 +214,7 @@ def update_user_role(*, actor: User, user: User, role: str) -> User:
         old_values={"role": previous_role},
         new_values={"role": role},
     )
+    invalidate_setup_status_cache()
 
     return user
 

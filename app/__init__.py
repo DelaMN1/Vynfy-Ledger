@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import secrets
+import time
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from flask import Flask, abort, g, redirect, render_template, request, url_for
+from flask import Flask, abort, g, has_request_context, redirect, render_template, request, url_for
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.admin.routes import admin_bp
@@ -37,6 +40,12 @@ AUTH_AWARE_PUBLIC_ENDPOINTS = {
     "auth.login",
     "setup.initialize",
 }
+
+
+@event.listens_for(Engine, "before_cursor_execute")
+def _count_request_queries(_conn, _cursor, _statement, _parameters, _context, _executemany):
+    if has_request_context() and hasattr(g, "request_query_count"):
+        g.request_query_count += 1
 
 
 def create_app(config_name: str | None = None) -> Flask:
@@ -90,6 +99,8 @@ def register_hooks(app: Flask) -> None:
     @app.before_request
     def enforce_security():
         g.csp_nonce = secrets.token_urlsafe(16)
+        g.request_started_at = time.perf_counter()
+        g.request_query_count = 0
 
         if app.config["FORCE_HTTPS"] and not request.is_secure:
             return redirect(_https_url(), code=301)
@@ -119,10 +130,10 @@ def register_hooks(app: Flask) -> None:
             "; ".join(
                 [
                     "default-src 'self'",
-                    f"script-src 'self' 'nonce-{csp_nonce}' https://cdn.tailwindcss.com https://cdn.jsdelivr.net",
+                    f"script-src 'self' 'nonce-{csp_nonce}' https://cdn.jsdelivr.net",
                     "style-src 'self' 'unsafe-inline'",
                     "img-src 'self' data:",
-                    "font-src 'self' https://cdn.jsdelivr.net",
+                    "font-src 'self'",
                     "connect-src 'self'",
                     "base-uri 'self'",
                     "form-action 'self'",
@@ -148,6 +159,22 @@ def register_hooks(app: Flask) -> None:
                 "Strict-Transport-Security",
                 "max-age=31536000; includeSubDomains",
             )
+
+        if app.config.get("REQUEST_TIMING_LOG_ENABLED"):
+            started_at = getattr(g, "request_started_at", None)
+            if started_at is not None:
+                duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
+                query_count = getattr(g, "request_query_count", 0)
+                if app.config.get("REQUEST_TIMING_LOG_ALL") or duration_ms >= app.config["REQUEST_TIMING_SLOW_MS"]:
+                    app.logger.info(
+                        "request_timing method=%s path=%s endpoint=%s status=%s duration_ms=%.2f query_count=%s",
+                        request.method,
+                        request.path,
+                        request.endpoint,
+                        response.status_code,
+                        duration_ms,
+                        query_count,
+                    )
 
         return apply_auth_cookie(response)
 

@@ -22,6 +22,13 @@ def test_csv_export_works(client, sample_data, login):
     assert b"label,value" in response.data
 
 
+def test_reports_page_renders(client, sample_data, login):
+    login("admin@example.com", "AdminPassword123")
+    response = client.get("/reports")
+    assert response.status_code == 200
+    assert b"Reports" in response.data
+
+
 def test_report_export_filename_is_sanitized(client, sample_data, login):
     login("admin@example.com", "AdminPassword123")
     response = client.get("/reports/export/csv?report=../../evil")

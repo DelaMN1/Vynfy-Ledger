@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from flask import Blueprint, Response, flash, g, redirect, render_template, request, url_for
 
 from app.extensions import db, limiter
+from app.models import Transaction
 from app.transactions.forms import (
     DeleteDraftForm,
     ExpenseActionForm,
@@ -121,12 +122,12 @@ def _render_history() -> str:
             }
         else:
             base_query = visible_transactions_query(g.current_user, selected_type)
-            total_records = base_query.count()
-            period_count = apply_filters(
+            has_any_records = base_query.with_entities(Transaction.id).limit(1).first() is not None
+            has_records_in_period = apply_filters(
                 base_query,
                 TransactionFilters(start_date=filters.start_date, end_date=filters.end_date),
-            ).count()
-            if total_records == 0:
+            ).with_entities(Transaction.id).limit(1).first() is not None
+            if not has_any_records:
                 empty_state = {
                     "title": "No transactions yet",
                     "body": "Create the first revenue or expense entry to start building ledger history.",
@@ -135,7 +136,7 @@ def _render_history() -> str:
                     "secondary_label": "Add expense",
                     "secondary_url": url_for("transactions.expense_new"),
                 }
-            elif period_count == 0:
+            elif not has_records_in_period:
                 empty_state = {
                     "title": "No records in this period",
                     "body": "There are ledger records, but none fall inside the selected week, month, or year window.",

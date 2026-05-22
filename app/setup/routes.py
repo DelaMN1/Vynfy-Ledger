@@ -5,7 +5,7 @@ from flask import Blueprint, flash, g, redirect, render_template, url_for
 from app.auth.forms import BootstrapAdminForm
 from app.auth.services import bootstrap_admin_user
 from app.extensions import db, limiter
-from app.setup.services import bootstrap_is_open, seed_baseline_data, setup_status, validate_bootstrap_token
+from app.setup.services import bootstrap_is_open, bootstrap_status, seed_baseline_data, setup_status, validate_bootstrap_token
 from app.utils.decorators import admin_required, login_required
 
 
@@ -35,7 +35,7 @@ def initialize():
         except ValueError as exc:
             db.session.rollback()
             flash(str(exc), "error")
-    return render_template("setup/bootstrap.html", form=form, bootstrap_token_required=setup_status()["bootstrap_token_required"])
+    return render_template("setup/bootstrap.html", form=form, bootstrap_token_required=bootstrap_status()["bootstrap_token_required"])
 
 
 @setup_bp.get("/setup")

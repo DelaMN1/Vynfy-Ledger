@@ -31,13 +31,36 @@ function setPasswordVisibility(button, showPassword) {
   }
 }
 
+function filterDirectoryRows(value) {
+  const rows = document.querySelectorAll("[data-user-row]");
+  if (!rows.length) {
+    return;
+  }
+  const query = value.trim().toLowerCase();
+  rows.forEach((row) => {
+    const haystack = (row.dataset.userText || "").toLowerCase();
+    row.hidden = Boolean(query) && !haystack.includes(query);
+  });
+}
+
+function scheduleFlashDismiss() {
+  const messages = document.querySelectorAll("[data-flash-message]");
+  messages.forEach((message) => {
+    window.setTimeout(() => {
+      message.classList.add("is-hiding");
+      window.setTimeout(() => {
+        message.remove();
+      }, 240);
+    }, 5000);
+  });
+}
+
 document.addEventListener("click", (event) => {
   followRowLink(event.target);
   const button = event.target.closest("[data-password-toggle]");
-  if (!button) {
-    return;
+  if (button) {
+    setPasswordVisibility(button, button.getAttribute("aria-pressed") != "true");
   }
-  setPasswordVisibility(button, button.getAttribute("aria-pressed") != "true");
 });
 
 document.addEventListener("keydown", (event) => {
@@ -50,4 +73,16 @@ document.addEventListener("keydown", (event) => {
   }
   event.preventDefault();
   window.location.assign(row.dataset.rowLink);
+});
+
+document.addEventListener("input", (event) => {
+  const input = event.target.closest("[data-user-search-input]");
+  if (!input) {
+    return;
+  }
+  filterDirectoryRows(input.value);
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  scheduleFlashDismiss();
 });

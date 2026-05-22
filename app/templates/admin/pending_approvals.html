@@ -1,17 +1,39 @@
 {% extends "base.html" %}
+{% import "partials/ui.html" as ui %}
 {% block page_title %}Pending Approvals{% endblock %}
 {% block content %}
-  <div class="rounded-3xl bg-white p-6 shadow-sm">
-    <h3 class="text-xl font-semibold">Submitted Expenses Awaiting Review</h3>
-    <div class="mt-6 space-y-3">
-      {% for item in items %}
-        <a class="block rounded-2xl border border-slate-200 px-4 py-4 hover:bg-slate-50" href="{{ url_for('transactions.expense_detail', transaction_id=item.id) }}">
-          <div class="flex items-center justify-between"><p class="font-medium">{{ item.title }}</p><p>{{ item.amount|currency }}</p></div>
-          <p class="mt-1 text-sm text-slate-500">{{ item.counterparty or "-" }} · submitted by {{ item.submitted_by.full_name }}</p>
-        </a>
-      {% else %}
-        <p class="text-slate-500">No pending approvals.</p>
-      {% endfor %}
+  <div class="space-y-6">
+    {% call ui.page_header("Pending Approvals", "Submitted expense items awaiting review, approval, or return.", "Queue") %}
+      <a class="btn-secondary" href="{{ url_for('transactions.transactions_list') }}">Open Transactions</a>
+    {% endcall %}
+
+    <div class="surface-card p-6">
+      <div class="stack-header">
+        <div class="stack-title">
+          <p class="table-card__eyebrow">Expense Review</p>
+          <h3 class="table-card__title">Submitted expenses awaiting review</h3>
+          <p class="table-card__subtitle">Use this queue to open each record, inspect context, and continue the approval workflow.</p>
+        </div>
+        <div class="count-pill">{{ items|length }} item{{ '' if items|length == 1 else 's' }}</div>
+      </div>
+      <div class="mt-6 space-y-3">
+        {% for item in items %}
+          <a class="data-row block px-5 py-4 transition hover:bg-white" href="{{ url_for('transactions.expense_detail', transaction_id=item.id) }}">
+            <div class="split-row">
+              <div class="split-row__primary">
+                <p class="font-medium text-break">{{ item.title }}</p>
+                <p class="mt-1 table-muted text-break">{{ item.counterparty or "-" }} - submitted by {{ item.submitted_by.full_name }}</p>
+              </div>
+              <div class="split-row__secondary text-left sm:text-right">
+                <p class="font-medium">{{ item.amount|currency }}</p>
+                <p class="mt-1 table-muted">{{ item.transaction_date.strftime('%d %b %Y') }}</p>
+              </div>
+            </div>
+          </a>
+        {% else %}
+          {{ ui.empty_state("No pending approvals", "There are no submitted expense records awaiting review right now.") }}
+        {% endfor %}
+      </div>
     </div>
   </div>
 {% endblock %}

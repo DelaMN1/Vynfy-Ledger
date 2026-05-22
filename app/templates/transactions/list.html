@@ -1,93 +1,109 @@
 {% extends "base.html" %}
+{% import "partials/ui.html" as ui %}
 {% block page_title %}{{ page_title }}{% endblock %}
 {% block content %}
-  <div class="glass-card field-shell rounded-[2rem] p-6">
-    <div class="stack-header gap-4">
-      <div class="stack-title">
-        <p class="section-kicker">Ledger History</p>
-        <h3 class="mt-2 text-2xl font-semibold">Revenue and expense records</h3>
-        <p class="mt-2 text-sm text-slate-500">Browse the ledger by period, type, status, and keyword without leaving one screen.</p>
+  <div class="space-y-6">
+    {% call ui.page_header("Transactions", "Verified financial activity across revenue and expense workflows.", "History") %}
+      <a class="btn-secondary" href="{{ url_for('transactions.transactions_export', type=selected_type, period=selected_period, status=request.args.get('status'), q=request.args.get('q')) }}">Export CSV</a>
+      <a class="btn-primary" href="{{ url_for('transactions.expense_new') }}">New Expense</a>
+    {% endcall %}
+
+    <div class="surface-card field-shell p-6">
+      <div class="stack-header gap-4">
+        <div class="stack-title">
+          <p class="table-card__eyebrow">Ledger History</p>
+          <h3 class="table-card__title">Ledger controls</h3>
+          <p class="table-card__subtitle">Search by period, transaction type, status, and keyword without leaving one screen.</p>
+        </div>
+        <div class="inline-badges">
+          <span class="count-pill">{{ pagination.total }} record{{ '' if pagination.total == 1 else 's' }}</span>
+        </div>
       </div>
-      <div class="flex flex-wrap gap-3">
-        <a class="action-pill bg-emerald-600 text-sm font-medium text-white" href="{{ url_for('transactions.revenue_new') }}">Add Revenue</a>
-        <a class="action-pill bg-rose-600 text-sm font-medium text-white" href="{{ url_for('transactions.expense_new') }}">Add Expense</a>
-        <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('transactions.transactions_export', type=selected_type, period=selected_period, status=request.args.get('status'), q=request.args.get('q')) }}">Export CSV</a>
+      <div class="mt-5 flex flex-wrap gap-3">
+        <a class="{{ 'btn-primary' if selected_period == 'week' else 'btn-secondary' }}" href="{{ url_for('transactions.transactions_list', period='week', transaction_type=selected_type, status=request.args.get('status'), q=request.args.get('q')) }}">This week</a>
+        <a class="{{ 'btn-primary' if selected_period == 'month' else 'btn-secondary' }}" href="{{ url_for('transactions.transactions_list', period='month', transaction_type=selected_type, status=request.args.get('status'), q=request.args.get('q')) }}">This month</a>
+        <a class="{{ 'btn-primary' if selected_period == 'year' else 'btn-secondary' }}" href="{{ url_for('transactions.transactions_list', period='year', transaction_type=selected_type, status=request.args.get('status'), q=request.args.get('q')) }}">This year</a>
       </div>
+      <form class="filter-toolbar-shell mt-6" method="get">
+        {{ filter_form.hidden_tag() }}
+        <div class="filter-toolbar">
+          <div class="filter-toolbar__field">
+            {{ filter_form.period.label(class="block") }}
+            {{ filter_form.period(class="text-sm") }}
+          </div>
+          <div class="filter-toolbar__field">
+            {{ filter_form.transaction_type.label(class="block") }}
+            {{ filter_form.transaction_type(class="text-sm") }}
+          </div>
+          <div class="filter-toolbar__field">
+            {{ filter_form.status.label(class="block") }}
+            {{ filter_form.status(class="text-sm") }}
+          </div>
+          <div class="filter-toolbar__field filter-toolbar__field--search">
+            {{ filter_form.q.label(class="block") }}
+            {{ filter_form.q(class="text-sm", placeholder="Search company, description, note, or reference") }}
+          </div>
+          <div class="filter-toolbar__actions">
+            <button class="btn-primary" type="submit">Apply</button>
+            <a class="btn-secondary" href="{{ url_for('transactions.transactions_list') }}">Reset</a>
+          </div>
+        </div>
+      </form>
     </div>
-    <div class="mt-5 flex flex-wrap gap-3">
-      <a class="action-pill {{ 'bg-slate-900 text-white' if selected_period == 'week' else 'border border-slate-300 text-slate-700' }}" href="{{ url_for('transactions.transactions_list', period='week', transaction_type=selected_type, status=request.args.get('status'), q=request.args.get('q')) }}">This week</a>
-      <a class="action-pill {{ 'bg-slate-900 text-white' if selected_period == 'month' else 'border border-slate-300 text-slate-700' }}" href="{{ url_for('transactions.transactions_list', period='month', transaction_type=selected_type, status=request.args.get('status'), q=request.args.get('q')) }}">This month</a>
-      <a class="action-pill {{ 'bg-slate-900 text-white' if selected_period == 'year' else 'border border-slate-300 text-slate-700' }}" href="{{ url_for('transactions.transactions_list', period='year', transaction_type=selected_type, status=request.args.get('status'), q=request.args.get('q')) }}">This year</a>
-      <div class="count-pill bg-slate-100 text-sm text-slate-600">{{ pagination.total }} record{{ '' if pagination.total == 1 else 's' }}</div>
-    </div>
-    <form class="mt-6 grid gap-4 md:grid-cols-[0.8fr_0.8fr_1fr_1.3fr_auto] md:items-end" method="get">
-      {{ filter_form.hidden_tag() }}
-      <div>
-        {{ filter_form.period.label(class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500") }}
-        {{ filter_form.period(class="w-full px-4 py-3 text-sm") }}
+
+    <div class="surface-card p-6">
+      <div class="stack-header gap-4">
+        <div class="stack-title">
+          <p class="table-card__eyebrow">Records</p>
+          <h3 class="table-card__title">Ledger entries</h3>
+          <p class="table-card__subtitle">Structured transaction history with roles, status badges, and direct drill-down access.</p>
+        </div>
       </div>
-      <div>
-        {{ filter_form.transaction_type.label(class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500") }}
-        {{ filter_form.transaction_type(class="w-full px-4 py-3 text-sm") }}
-      </div>
-      <div>
-        {{ filter_form.status.label(class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500") }}
-        {{ filter_form.status(class="w-full px-4 py-3 text-sm") }}
-      </div>
-      <div>
-        {{ filter_form.q.label(class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500") }}
-        {{ filter_form.q(class="w-full px-4 py-3 text-sm", placeholder="Search company name or expense description") }}
-      </div>
-      <div class="flex gap-3">
-        <button class="action-pill bg-slate-900 text-sm font-medium text-white" type="submit">Apply</button>
-        <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('transactions.transactions_list') }}">Reset</a>
-      </div>
-    </form>
-    <div class="mt-6 overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead class="text-left text-slate-500">
-          <tr><th class="pb-3">Entry</th><th class="pb-3">Type</th><th class="pb-3">Category</th><th class="pb-3">Date</th><th class="pb-3">Amount</th><th class="pb-3">Recorded by</th><th class="pb-3">Status</th></tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100">
+      <div class="table-scroll mt-6">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Entry</th>
+              <th>Type</th>
+              <th>Category</th>
+              <th>Date</th>
+              <th class="table-amount">Amount</th>
+              <th>Recorded by</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
           {% for item in pagination.items %}
             {% set status = item.status %}
-            <tr class="cursor-pointer hover:bg-slate-50" data-row-link="{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}" tabindex="0" role="link">
-              <td class="py-4">
+            <tr data-row-link="{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}" tabindex="0" role="link">
+              <td>
                 <div class="font-medium text-break">{{ item.counterparty or item.title }}</div>
                 {% if item.counterparty and item.title %}
-                  <div class="mt-1 text-xs text-slate-500 text-break">{{ item.title }}</div>
+                  <div class="mt-1 table-muted text-break">{{ item.title }}</div>
                 {% endif %}
               </td>
-              <td class="py-4 capitalize">{{ item.transaction_type }}</td>
-              <td class="py-4 text-break">{{ item.category.name if item.category else '-' }}</td>
-              <td class="py-4">{{ item.transaction_date.strftime('%d %b %Y') }}</td>
-              <td class="py-4">{{ item.amount|currency }}</td>
-              <td class="py-4">{{ item.submitted_by.full_name }}</td>
-              <td class="py-4">{% include "partials/status_badge.html" %}</td>
+              <td class="capitalize">{{ item.transaction_type }}</td>
+              <td class="text-break">{{ item.category.name if item.category else '-' }}</td>
+              <td>{{ item.transaction_date.strftime('%d %b %Y') }}</td>
+              <td class="table-amount">{{ item.amount|currency }}</td>
+              <td>{{ item.submitted_by.full_name }}</td>
+              <td>{% include "partials/status_badge.html" %}</td>
             </tr>
           {% else %}
             <tr>
-              <td class="py-8" colspan="7">
+              <td colspan="7">
                 {% if empty_state %}
-                  <div class="rounded-[1.5rem] border border-slate-200 bg-slate-50 px-5 py-5">
-                    <p class="text-sm font-semibold text-slate-900">{{ empty_state.title }}</p>
-                    <p class="mt-2 text-sm text-slate-600">{{ empty_state.body }}</p>
-                    <div class="mt-4 flex flex-wrap gap-3">
-                      <a class="action-pill bg-slate-900 text-sm font-medium text-white" href="{{ empty_state.primary_url }}">{{ empty_state.primary_label }}</a>
-                      {% if empty_state.secondary_url %}
-                        <a class="action-pill border border-slate-300 text-sm" href="{{ empty_state.secondary_url }}">{{ empty_state.secondary_label }}</a>
-                      {% endif %}
-                    </div>
-                  </div>
+                  {{ ui.empty_state(empty_state.title, empty_state.body, empty_state.primary_label, empty_state.primary_url, empty_state.secondary_label, empty_state.secondary_url) }}
                 {% else %}
-                  <span class="text-slate-500">No records match the current filters.</span>
+                  {{ ui.empty_state("No records match the current filters", "Try widening the current period, status, or keyword filters.") }}
                 {% endif %}
               </td>
             </tr>
           {% endfor %}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
+      {% include "partials/pagination.html" %}
     </div>
-    {% include "partials/pagination.html" %}
   </div>
 {% endblock %}

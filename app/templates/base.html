@@ -4,54 +4,65 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
-    <link rel="preconnect" href="https://cdn.tailwindcss.com">
-    <link rel="preconnect" href="https://cdn.jsdelivr.net">
-    <script nonce="{{ csp_nonce }}" src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.generated.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
     {% block head_scripts %}{% endblock %}
   </head>
   <body class="min-h-screen text-slate-900">
     {% if current_user %}
-      <div class="flex min-h-screen">
-        <aside class="shell-sidebar hidden w-72 flex-col px-6 py-8 text-slate-100 lg:flex">
-          <div>
-            <p class="text-xs uppercase tracking-[0.3em] text-emerald-400">Finance Ops</p>
-            <h1 class="mt-3 text-2xl font-semibold">{{ app_name }}</h1>
-            <p class="mt-4 max-w-[13rem] text-sm leading-6 text-slate-300">Control spend, approve faster, and keep revenue and reconciliations in one clean operating view.</p>
+      {% set notification_url = url_for('admin.approvals') if current_user.is_admin else url_for('transactions.transactions_list') %}
+      {% set user_parts = current_user.full_name.split() %}
+      {% set avatar_initials = ((user_parts[0][0] if user_parts else 'U') ~ (user_parts[-1][0] if user_parts|length > 1 else ''))|upper %}
+      <div class="app-shell">
+        <aside class="sidebar-shell">
+          <div class="sidebar-shell__header">
+            <a class="sidebar-brand" href="{{ url_for('dashboard.overview') }}">
+              <span class="sidebar-brand__mark">VL</span>
+              <span class="sidebar-brand__text">
+                <span class="sidebar-brand__eyebrow">Vynfy</span>
+                <span class="sidebar-brand__name">Ledger</span>
+              </span>
+            </a>
+            <p class="sidebar-shell__copy">Internal finance operations with disciplined revenue, spend, reporting, and reconciliation workflows.</p>
           </div>
-          <nav class="mt-10 space-y-2 text-sm">
-            <a class="sidebar-link {{ 'is-active' if request.endpoint == 'dashboard.overview' else '' }}" href="{{ url_for('dashboard.overview') }}">Dashboard</a>
-            <a class="sidebar-link {{ 'is-active' if request.endpoint in ['transactions.revenue_new', 'transactions.revenue_detail', 'transactions.revenue_edit'] else '' }}" href="{{ url_for('transactions.revenue_new') }}">Add Revenue</a>
-            <a class="sidebar-link {{ 'is-active' if request.endpoint in ['transactions.expense_new', 'transactions.expense_detail', 'transactions.expense_edit'] else '' }}" href="{{ url_for('transactions.expense_new') }}">Add Expense</a>
-            <a class="sidebar-link {{ 'is-active' if request.endpoint in ['transactions.transactions_list', 'transactions.transaction_detail', 'transactions.revenue_list', 'transactions.expense_list'] else '' }}" href="{{ url_for('transactions.transactions_list') }}">History</a>
-            {% if current_user.is_admin %}
-              {% if setup_state and not setup_state.is_ready %}
-                <a class="sidebar-link {{ 'is-active' if request.endpoint == 'setup.overview' else '' }}" href="{{ url_for('setup.overview') }}">Setup</a>
-              {% endif %}
-              <a class="sidebar-link {{ 'is-active' if request.endpoint == 'settings.accounts' else '' }}" href="{{ url_for('settings.accounts') }}">Accounts</a>
-              <a class="sidebar-link {{ 'is-active' if request.endpoint == 'settings.users' else '' }}" href="{{ url_for('settings.users') }}">Users</a>
-            {% endif %}
-          </nav>
+          {% include "partials/sidebar_nav.html" %}
+          <form class="sidebar-shell__logout" method="post" action="{{ url_for('auth.logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn-secondary btn-secondary--full" type="submit">Logout</button>
+          </form>
         </aside>
-        <main class="page-shell flex-1">
-          <header class="shell-header border-b border-white/50 px-6 py-4">
-            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 class="text-3xl font-semibold">{% block page_title %}{{ app_name }}{% endblock %}</h2>
-              </div>
-              <div class="flex items-center gap-3">
-                <div class="count-pill border border-white/70 bg-white/70 px-4 py-2 text-sm shadow-sm">
-                  <span class="font-medium">{{ current_user.full_name }}</span>
-                  <span class="ml-2 text-slate-500">{{ current_user.role|title }}</span>
-                </div>
-                <form method="post" action="{{ url_for('auth.logout') }}">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button class="action-pill bg-slate-900 text-sm font-medium text-white" type="submit">Logout</button>
+        <main class="app-shell__main">
+          <header class="topbar-shell">
+            <div class="topbar-shell__inner">
+              <div class="topbar-shell__left">
+                <form class="topbar-search" method="get" action="{{ url_for('transactions.transactions_list') }}">
+                  <span class="topbar-search__icon" aria-hidden="true">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24">
+                      <circle cx="11" cy="11" r="6"></circle>
+                      <path d="m20 20-3.5-3.5"></path>
+                    </svg>
+                  </span>
+                  <input type="search" name="q" value="{{ request.args.get('q', '') }}" placeholder="Search transactions, vendors, references, or notes">
                 </form>
+              </div>
+              <div class="topbar-shell__right">
+                <a class="icon-button" href="{{ notification_url }}" aria-label="Open notifications">
+                  <svg aria-hidden="true" class="h-5 w-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24">
+                    <path d="M15 17H5.5A1.5 1.5 0 0 1 4 15.5v-.7A4.8 4.8 0 0 0 5.6 11V9a6.4 6.4 0 0 1 12.8 0v2a4.8 4.8 0 0 0 1.6 3.8v.7a1.5 1.5 0 0 1-1.5 1.5H9"></path>
+                    <path d="M10 18a2 2 0 1 0 4 0"></path>
+                  </svg>
+                </a>
+                <div class="user-chip">
+                  <div class="avatar-circle">{{ avatar_initials }}</div>
+                  <div class="user-chip__meta">
+                    <p class="user-chip__name">{{ current_user.full_name }}</p>
+                    <p class="user-chip__role">{{ current_user.role|upper }}</p>
+                  </div>
+                </div>
               </div>
             </div>
           </header>
-          <section class="px-6 py-6">
+          <section class="content-area">
             {% include "partials/flash_messages.html" %}
             {% include "partials/setup_banner.html" %}
             {% block content %}{% endblock %}
@@ -59,7 +70,7 @@
         </main>
       </div>
     {% else %}
-      <main class="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.18),_transparent_40%),linear-gradient(180deg,_#020617_0%,_#0f172a_55%,_#e2e8f0_55%,_#f8fafc_100%)]">
+      <main class="auth-shell min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.18),_transparent_40%),linear-gradient(180deg,_#020617_0%,_#0f172a_55%,_#e2e8f0_55%,_#f8fafc_100%)]">
         {% include "partials/flash_messages.html" %}
         {% block auth_content %}{% endblock %}
       </main>

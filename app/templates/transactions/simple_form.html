@@ -1,17 +1,26 @@
 {% extends "base.html" %}
+{% import "partials/ui.html" as ui %}
 {% block page_title %}{{ page_title }}{% endblock %}
 {% block content %}
-  <div class="mx-auto max-w-3xl">
-    <form class="glass-card field-shell rounded-[2rem] p-8" method="post">
+  <div class="mx-auto max-w-4xl space-y-6">
+    {% call ui.page_header(page_title, "Fast entry for day-to-day finance operations without leaving the main ledger workflow.", entry_type|title) %}
+      <a class="btn-secondary" href="{{ url_for('transactions.transactions_list') }}">View Transactions</a>
+    {% endcall %}
+    <form class="surface-card field-shell p-8" method="post">
       {{ form.hidden_tag() }}
       {% if not entry_ready %}
-        <div class="mb-6 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
+        <div class="mb-6 rounded-[1.25rem] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
           {{ entry_setup_message }}
           <div class="mt-3">
             <a class="font-medium underline decoration-amber-400 underline-offset-4" href="{{ url_for('setup.overview') }}">Open setup checklist</a>
           </div>
         </div>
       {% endif %}
+      <div class="mb-6">
+        <p class="table-card__eyebrow">{{ "Revenue Intake" if entry_type == "revenue" else "Expense Intake" }}</p>
+        <h3 class="table-card__title">{{ "New revenue record" if entry_type == "revenue" else "New expense record" }}</h3>
+        <p class="table-card__subtitle">Use the simplified entry form for fast capture, then manage history, review, and settlement from the main ledger screens.</p>
+      </div>
       <div class="grid gap-5 md:grid-cols-2">
         {% if entry_type == 'revenue' %}
           <div class="md:col-span-2">
@@ -46,10 +55,10 @@
         </div>
       </div>
       <div class="mt-8 flex flex-wrap gap-3">
-        <button class="action-pill bg-slate-900 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" {% if not entry_ready %}disabled{% endif %}>
+        <button class="btn-primary disabled:cursor-not-allowed disabled:opacity-60" type="submit" {% if not entry_ready %}disabled{% endif %}>
           {{ "Add revenue" if entry_type == "revenue" else "Add expense" }}
         </button>
-        <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('transactions.transactions_list') }}">View history</a>
+        <a class="btn-secondary" href="{{ url_for('transactions.transactions_list') }}">View history</a>
       </div>
     </form>
   </div>

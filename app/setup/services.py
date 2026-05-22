@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from time import monotonic
 
 from flask import current_app, g, has_request_context
 from sqlalchemy import func
@@ -83,6 +84,62 @@ def active_admin_count() -> int:
     return int(User.query.filter_by(role="admin", is_active=True).count())
 
 
+def _has_active_admin() -> bool:
+    return User.query.with_entities(User.id).filter_by(role="admin", is_active=True).first() is not None
+
+
+def _clear_request_setup_cache() -> None:
+    if not has_request_context():
+        return
+    for attr in ("_bootstrap_status", "_setup_status"):
+        if hasattr(g, attr):
+            delattr(g, attr)
+
+
+def _setup_cache_store() -> dict[str, dict[str, object]]:
+    return current_app.extensions.setdefault("setup_status_cache", {})
+
+
+def _setup_cache_ttl() -> float:
+    return max(float(current_app.config.get("SETUP_STATUS_CACHE_SECONDS", 0)), 0.0)
+
+
+def invalidate_setup_status_cache() -> None:
+    _clear_request_setup_cache()
+    _setup_cache_store().clear()
+
+
+def _cache_status(
+    *,
+    request_attr: str,
+    cache_key: str,
+    loader,
+) -> dict[str, object]:
+    if has_request_context():
+        cached = getattr(g, request_attr, None)
+        if cached is not None:
+            return cached
+
+    ttl_seconds = _setup_cache_ttl()
+    cached_value = None
+    if ttl_seconds > 0:
+        cache_entry = _setup_cache_store().get(cache_key)
+        if cache_entry and cache_entry["expires_at"] > monotonic():
+            cached_value = cache_entry["value"]
+
+    if cached_value is None:
+        cached_value = loader()
+        if ttl_seconds > 0:
+            _setup_cache_store()[cache_key] = {
+                "expires_at": monotonic() + ttl_seconds,
+                "value": cached_value,
+            }
+
+    if has_request_context():
+        setattr(g, request_attr, cached_value)
+    return cached_value
+
+
 def bootstrap_token_required() -> bool:
     return bool(current_app.config.get("BOOTSTRAP_SETUP_TOKEN"))
 
@@ -96,16 +153,23 @@ def bootstrap_is_allowed() -> bool:
 
 
 def bootstrap_is_open() -> bool:
-    return bootstrap_is_allowed() and active_admin_count() == 0
+    return bootstrap_is_allowed() and not _has_active_admin()
 
 
 def bootstrap_status() -> dict[str, object]:
-    admin_count = active_admin_count()
-    return {
-        "bootstrap_open": bootstrap_is_allowed() and admin_count == 0,
-        "bootstrap_token_required": bootstrap_token_required(),
-        "active_admin": admin_count > 0,
-    }
+    def _load_status() -> dict[str, object]:
+        has_admin = _has_active_admin()
+        return {
+            "bootstrap_open": bootstrap_is_allowed() and not has_admin,
+            "bootstrap_token_required": bootstrap_token_required(),
+            "active_admin": has_admin,
+        }
+
+    return _cache_status(
+        request_attr="_bootstrap_status",
+        cache_key="bootstrap_status",
+        loader=_load_status,
+    )
 
 
 def validate_bootstrap_token(token: str | None) -> None:
@@ -116,23 +180,44 @@ def validate_bootstrap_token(token: str | None) -> None:
         raise ServiceError("Bootstrap access token is invalid.")
 
 
-def _has_active_category(category_type: str) -> bool:
-    return Category.query.filter_by(type=category_type, is_active=True).first() is not None
+def _setup_presence_checks() -> dict[str, bool]:
+    checks = db.session.query(
+        db.session.query(User.id)
+        .filter_by(role="admin", is_active=True)
+        .exists()
+        .label("active_admin"),
+        db.session.query(Category.id)
+        .filter(Category.is_active.is_(True), Category.type == CategoryType.REVENUE.value)
+        .exists()
+        .label("revenue_category"),
+        db.session.query(Category.id)
+        .filter(Category.is_active.is_(True), Category.type == CategoryType.EXPENSE.value)
+        .exists()
+        .label("expense_category"),
+        db.session.query(Account.id)
+        .filter(Account.is_active.is_(True))
+        .exists()
+        .label("account"),
+        db.session.query(PaymentMethod.id)
+        .filter(PaymentMethod.is_active.is_(True))
+        .exists()
+        .label("payment_method"),
+    ).one()
+    return {
+        "active_admin": bool(checks.active_admin),
+        "revenue_category": bool(checks.revenue_category),
+        "expense_category": bool(checks.expense_category),
+        "account": bool(checks.account),
+        "payment_method": bool(checks.payment_method),
+    }
 
 
 def _compute_setup_status() -> dict[str, object]:
-    bootstrap = bootstrap_status()
-    checks = {
-        "active_admin": bool(bootstrap["active_admin"]),
-        "revenue_category": _has_active_category(CategoryType.REVENUE.value),
-        "expense_category": _has_active_category(CategoryType.EXPENSE.value),
-        "account": Account.query.filter_by(is_active=True).first() is not None,
-        "payment_method": PaymentMethod.query.filter_by(is_active=True).first() is not None,
-    }
+    checks = _setup_presence_checks()
     missing = [item for item in SETUP_REQUIREMENTS if not checks[item.key]]
     return {
-        "bootstrap_open": bootstrap["bootstrap_open"],
-        "bootstrap_token_required": bootstrap["bootstrap_token_required"],
+        "bootstrap_open": bootstrap_is_allowed() and not checks["active_admin"],
+        "bootstrap_token_required": bootstrap_token_required(),
         "checks": checks,
         "missing_requirements": missing,
         "is_ready": not missing,
@@ -141,13 +226,11 @@ def _compute_setup_status() -> dict[str, object]:
 
 
 def setup_status() -> dict[str, object]:
-    if has_request_context():
-        cached = getattr(g, "_setup_status", None)
-        if cached is None:
-            cached = _compute_setup_status()
-            g._setup_status = cached
-        return cached
-    return _compute_setup_status()
+    return _cache_status(
+        request_attr="_setup_status",
+        cache_key="setup_status",
+        loader=_compute_setup_status,
+    )
 
 
 def setup_state_or_none() -> dict[str, object] | None:
@@ -236,6 +319,7 @@ def seed_baseline_data(*, actor: User | None = None) -> dict[str, int]:
         action="seed_baseline",
         new_values=created,
     )
+    invalidate_setup_status_cache()
     return created
 
 
@@ -285,11 +369,15 @@ def account_balance_snapshot(account: Account) -> dict[str, object]:
     }
 
 
-def account_balance_snapshots() -> list[dict[str, object]]:
-    accounts = Account.query.order_by(Account.name.asc()).all()
+def account_balance_snapshots(accounts: list[Account] | None = None) -> list[dict[str, object]]:
+    accounts = accounts or Account.query.order_by(Account.name.asc()).all()
+    account_ids = [account.id for account in accounts]
+    if not account_ids:
+        return []
     revenue_totals = dict(
         db.session.query(Transaction.account_id, func.coalesce(func.sum(Transaction.received_amount), 0))
         .filter(
+            Transaction.account_id.in_(account_ids),
             Transaction.transaction_type == TransactionType.REVENUE.value,
             Transaction.status.in_(REVENUE_SETTLED_STATUSES),
             Transaction.deleted_at.is_(None),
@@ -300,6 +388,7 @@ def account_balance_snapshots() -> list[dict[str, object]]:
     expense_totals = dict(
         db.session.query(Transaction.account_id, func.coalesce(func.sum(Transaction.amount), 0))
         .filter(
+            Transaction.account_id.in_(account_ids),
             Transaction.transaction_type == TransactionType.EXPENSE.value,
             Transaction.status.in_(EXPENSE_SETTLED_STATUSES),
             Transaction.deleted_at.is_(None),

@@ -1,34 +1,39 @@
 {% extends "base.html" %}
+{% import "partials/ui.html" as ui %}
 {% block page_title %}Setup{% endblock %}
 {% block content %}
-  <div class="space-y-5">
-    <div class="glass-card rounded-[2rem] p-7">
+  <div class="space-y-6">
+    {% call ui.page_header("Setup", "Fresh-install readiness for baseline data, transaction entry, history, and reporting.", "Workspace") %}
+      {% if current_user.is_admin %}
+        <form method="post" action="{{ url_for('setup.seed_baseline') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn-primary" type="submit">Seed Baseline Data</button>
+        </form>
+      {% endif %}
+    {% endcall %}
+
+    <div class="surface-card p-7">
       <div class="stack-header">
         <div class="stack-title">
-          <p class="section-kicker">Workspace Setup</p>
-          <h3 class="mt-2 text-2xl font-semibold">Fresh-install readiness</h3>
-          <p class="mt-2 text-sm leading-6 text-slate-600">Complete these prerequisites before relying on the simplified entry forms, history, and reports.</p>
+          <p class="table-card__eyebrow">Readiness</p>
+          <h3 class="table-card__title">Fresh-install checklist</h3>
+          <p class="table-card__subtitle">Complete these prerequisites before relying on simplified entry forms, history, and reports.</p>
         </div>
-        {% if current_user.is_admin %}
-          <form method="post" action="{{ url_for('setup.seed_baseline') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="action-pill bg-slate-900 text-sm font-medium text-white" type="submit">Seed Baseline Data</button>
-          </form>
-        {% endif %}
+        <div class="count-pill">{{ setup_state.missing_requirements|length }} pending</div>
       </div>
-      <div class="mt-6 grid gap-4 md:grid-cols-2">
+      <div class="setup-grid mt-6">
         {% for item in setup_state.missing_requirements %}
-          <div class="rounded-[1.5rem] border border-amber-200 bg-amber-50 px-5 py-4">
-            <p class="text-sm font-semibold text-amber-950">{{ item.label }}</p>
-            <p class="mt-2 text-sm text-amber-900">{{ item.description }}</p>
+          <div class="setup-check setup-check--missing">
+            <p class="setup-check__title">{{ item.label }}</p>
+            <p class="setup-check__body">{{ item.description }}</p>
             {% if current_user.is_admin and item.endpoint %}
-              <a class="mt-4 inline-flex rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-900" href="{{ url_for(item.endpoint) }}">Resolve</a>
+              <a class="btn-secondary mt-4" href="{{ url_for(item.endpoint) }}">Resolve</a>
             {% endif %}
           </div>
         {% else %}
-          <div class="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-5 py-4 md:col-span-2">
-            <p class="text-sm font-semibold text-emerald-900">Setup complete</p>
-            <p class="mt-2 text-sm text-emerald-900">Baseline setup data is in place and the workspace is ready for normal operation.</p>
+          <div class="setup-check setup-check--ready">
+            <p class="setup-check__title">Setup complete</p>
+            <p class="setup-check__body">Baseline setup data is in place and the workspace is ready for normal operation.</p>
           </div>
         {% endfor %}
       </div>

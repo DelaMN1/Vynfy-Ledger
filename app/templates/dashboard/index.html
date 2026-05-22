@@ -1,28 +1,13 @@
 {% extends "base.html" %}
+{% import "partials/ui.html" as ui %}
 {% block page_title %}Dashboard{% endblock %}
 {% block content %}
   <div class="space-y-6">
-    <div class="hero-panel p-6">
-      <div class="stack-header">
-        <div class="stack-title max-w-2xl">
-          <p class="section-kicker">Ledger View</p>
-          <h3 class="mt-2 text-3xl font-semibold text-slate-900">Current month at a glance</h3>
-          <p class="mt-3 text-sm leading-6 text-slate-600">See how much revenue came in, how much was spent, and where the month currently stands.</p>
-          <div class="mt-5 flex flex-wrap gap-3">
-            <a class="action-pill bg-emerald-600 text-sm font-medium text-white" href="{{ url_for('transactions.revenue_new') }}">Add Revenue</a>
-            <a class="action-pill bg-rose-600 text-sm font-medium text-white" href="{{ url_for('transactions.expense_new') }}">Add Expense</a>
-            <a class="action-pill border border-slate-300 bg-white text-sm text-slate-700" href="{{ url_for('transactions.transactions_list') }}">Open History</a>
-            {% if current_user.is_admin %}
-              <a class="action-pill border border-slate-300 bg-white text-sm text-slate-700" href="{{ url_for('settings.accounts') }}">View Accounts</a>
-              <a class="action-pill border border-slate-300 bg-white text-sm text-slate-700" href="{{ url_for('settings.users') }}">View Active Users</a>
-            {% endif %}
-          </div>
-        </div>
-        <div class="count-pill border border-white/70 bg-white/70 px-4 py-2 text-sm shadow-sm">
-          {{ month_label }}
-        </div>
-      </div>
-    </div>
+    {% call ui.page_header("Overview", "Real-time financial monitoring for revenue, expenses, approvals, and ledger movement.", "Dashboard") %}
+      <a class="btn-secondary" href="{{ url_for('transactions.transactions_export', period='month') }}">Export</a>
+      <a class="btn-secondary" href="{{ url_for('transactions.revenue_new') }}">Add Revenue</a>
+      <a class="btn-primary" href="{{ url_for('transactions.expense_new') }}">New Expense</a>
+    {% endcall %}
     {% include "dashboard/_dashboard_content.html" %}
   </div>
 {% endblock %}

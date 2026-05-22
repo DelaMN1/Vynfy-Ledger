@@ -9,6 +9,8 @@ class Transaction(TimestampMixin, db.Model):
     __table_args__ = (
         db.Index("ix_transactions_type_status", "transaction_type", "status"),
         db.Index("ix_transactions_owner_date", "submitted_by_id", "transaction_date"),
+        db.Index("ix_transactions_deleted_at", "deleted_at"),
+        db.Index("ix_transactions_approved_by_id", "approved_by_id"),
     )
 
     id = db.Column(db.Integer, primary_key=True)

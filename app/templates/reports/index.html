@@ -1,77 +1,132 @@
 {% extends "base.html" %}
 {% import "partials/filter_toolbar.html" as filter_toolbar %}
+{% import "partials/ui.html" as ui %}
 {% block page_title %}Reports{% endblock %}
 {% block head_scripts %}
   <script nonce="{{ csp_nonce }}" src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 {% endblock %}
 {% block content %}
   {% set has_advanced_filters = request.args.get('category_id') or request.args.get('account_id') or request.args.get('owner_id') %}
+  {% set report_count = report["rows"]|length %}
+  {% set max_value = report["values"]|max if report["values"] else 0 %}
+  {% set average_value = (report["metric_total"] / report_count) if report_count else 0 %}
+  {% set dominant_share = ((max_value / report["metric_total"]) * 100) if report["metric_total"] else 0 %}
   {% set report_select %}
-    <select class="px-4 py-3 text-sm" name="report">
+    <select class="text-sm" name="report">
       {% for value, label in report_options %}
         <option value="{{ value }}" {% if report_key == value %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
   {% endset %}
-  <div class="glass-card rounded-[2rem] p-6">
-    <div class="border-b border-slate-200/80 pb-6">
-      <form class="filter-toolbar-shell" method="get">
+
+  <div class="space-y-6">
+    {% call ui.page_header("Reports", "Financial intelligence and trends across live ledger activity.", "Analytics") %}
+      <a class="btn-secondary" href="{{ url_for('reports.export_csv', report=report_key, q=request.args.get('q'), status=request.args.get('status'), category_id=request.args.get('category_id'), account_id=request.args.get('account_id'), owner_id=request.args.get('owner_id')) }}">Export CSV</a>
+      <a class="btn-primary" href="{{ url_for('transactions.transactions_list') }}">Open Transactions</a>
+    {% endcall %}
+
+    <div class="surface-card p-6">
+      <div class="stack-header">
+        <div class="stack-title">
+          <p class="table-card__eyebrow">Filters</p>
+          <h3 class="table-card__title">Analytics controls</h3>
+          <p class="table-card__subtitle">Switch report views, tighten filters, and export a clean output without changing the underlying calculations.</p>
+        </div>
+      </div>
+      <form class="filter-toolbar-shell mt-6" method="get">
         {% call filter_toolbar.row("filter-toolbar--reports") %}
           {{ filter_toolbar.field(
-            '<label class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Report</label>'|safe,
+            '<label class="block">Report</label>'|safe,
             report_select|safe
           ) }}
           {{ filter_toolbar.field(
-            filter_form.q.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
-            filter_form.q(class="px-4 py-3 text-sm", placeholder="Search label, vendor, or source"),
+            filter_form.q.label(class="block"),
+            filter_form.q(class="text-sm", placeholder="Search label, vendor, or source"),
             "filter-toolbar__field--search"
           ) }}
           {{ filter_toolbar.field(
-            filter_form.status.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
-            filter_form.status(class="px-4 py-3 text-sm"),
+            filter_form.status.label(class="block"),
+            filter_form.status(class="text-sm"),
             "filter-toolbar__field--wide"
           ) }}
           {% call filter_toolbar.actions("filter-toolbar__actions--reports-inline") %}
-            <button class="action-pill bg-slate-900 text-sm font-medium text-white" type="submit">Apply</button>
-            <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('reports.index', report=report_key) }}">Reset</a>
+            <button class="btn-primary" type="submit">Apply</button>
+            <a class="btn-secondary" href="{{ url_for('reports.index', report=report_key) }}">Reset</a>
           {% endcall %}
           {% call filter_toolbar.actions("filter-toolbar__actions--reports-export") %}
-            <a class="action-pill border border-slate-300 text-sm" href="{{ url_for('reports.export_csv', report=report_key, q=request.args.get('q'), status=request.args.get('status'), category_id=request.args.get('category_id'), account_id=request.args.get('account_id'), owner_id=request.args.get('owner_id')) }}">Export CSV</a>
+            <a class="btn-secondary" href="{{ url_for('reports.export_csv', report=report_key, q=request.args.get('q'), status=request.args.get('status'), category_id=request.args.get('category_id'), account_id=request.args.get('account_id'), owner_id=request.args.get('owner_id')) }}">Download CSV</a>
           {% endcall %}
         {% endcall %}
 
         {% call filter_toolbar.advanced("More Filters", "Category, account, and owner filters", has_advanced_filters) %}
           {{ filter_toolbar.field(
-            filter_form.category_id.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
-            filter_form.category_id(class="px-4 py-3 text-sm")
+            filter_form.category_id.label(class="block"),
+            filter_form.category_id(class="text-sm")
           ) }}
           {{ filter_toolbar.field(
-            filter_form.account_id.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
-            filter_form.account_id(class="px-4 py-3 text-sm")
+            filter_form.account_id.label(class="block"),
+            filter_form.account_id(class="text-sm")
           ) }}
           {{ filter_toolbar.field(
-            filter_form.owner_id.label(class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"),
-            filter_form.owner_id(class="px-4 py-3 text-sm")
+            filter_form.owner_id.label(class="block"),
+            filter_form.owner_id(class="text-sm")
           ) }}
         {% endcall %}
       </form>
     </div>
-    <div class="pt-6">
-      <div class="flex items-center justify-between">
-        <div><p class="text-sm text-slate-500">Current total</p><h3 class="mt-2 text-3xl font-semibold">{{ report.metric_total|currency }}</h3></div>
+
+    <div class="metric-grid">
+      {{ ui.metric_card("Current Total", report["metric_total"]|currency, "Aggregate value for the active report and filter set.", "cash", "TT") }}
+      {{ ui.metric_card("Average Value", average_value|currency, "Average contribution across the current report rows.", "neutral", "AV") }}
+      {{ ui.metric_card("Largest Segment", max_value|currency, (dominant_share|round(1)) ~ "% of the visible total.", "warning", "MX") }}
+      {{ ui.metric_card("Data Points", report_count, "Rows currently included in the report output.", "neutral", "CT") }}
+    </div>
+
+    <div class="dashboard-grid">
+      <div class="surface-card p-6">
+        <div class="card-header">
+          <div>
+            <p class="table-card__eyebrow">Visualization</p>
+            <h3 class="table-card__title">Revenue vs. expenses trend</h3>
+            <p class="table-card__subtitle">The active report rendered as a clean chart for fast comparison and directional reading.</p>
+          </div>
+        </div>
+        <div class="mt-6 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+          <canvas id="report-chart" class="h-80"></canvas>
+        </div>
       </div>
-      <canvas id="report-chart" class="mt-6 h-72"></canvas>
-      <div class="mt-6 overflow-x-auto">
-        <table class="min-w-full text-sm">
-          <thead><tr class="text-left text-slate-500"><th class="pb-3">Label</th><th class="pb-3">Value</th></tr></thead>
-          <tbody class="divide-y divide-slate-100">
-            {% for label, value in report.rows %}
-              <tr><td class="py-3">{{ label }}</td><td class="py-3">{{ value|currency }}</td></tr>
-            {% else %}
-              <tr><td class="py-6 text-slate-500" colspan="2">No report data for the current filters.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+
+      <div class="surface-card p-6">
+        <div class="card-header">
+          <div>
+            <p class="table-card__eyebrow">Breakdown</p>
+            <h3 class="table-card__title">Category summary</h3>
+            <p class="table-card__subtitle">Label-level values behind the active chart, ready for export or review.</p>
+          </div>
+          <div class="count-pill">{{ report_count }} row{{ '' if report_count == 1 else 's' }}</div>
+        </div>
+        <div class="table-scroll mt-6">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th class="table-amount">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for label, value in report["rows"] %}
+                <tr>
+                  <td class="text-break">{{ label }}</td>
+                  <td class="table-amount">{{ value|currency }}</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="2">{{ ui.empty_state("No report data", "No rows match the active report and filter combination.") }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -83,10 +138,47 @@
       if (!target || typeof Chart === "undefined") {
         return;
       }
+      const doughnutReports = new Set(["expense_category", "revenue_source", "receivables", "payables"]);
+      const reportKey = {{ report_key|tojson }};
+      const chartType = doughnutReports.has(reportKey) ? "doughnut" : "bar";
       new Chart(target, {
-        type: "bar",
-        data: { labels: {{ report["labels"]|tojson }}, datasets: [{ label: "Value", data: {{ report["values"]|tojson }}, backgroundColor: "#0f172a" }] },
-        options: { plugins: { legend: { display: false } } }
+        type: chartType,
+        data: {
+          labels: {{ report["labels"]|tojson }},
+          datasets: [{
+            label: "Value",
+            data: {{ report["values"]|tojson }},
+            backgroundColor: chartType === "doughnut"
+              ? ["#0f172a", "#334155", "#64748b", "#94a3b8", "#cbd5e1", "#16a34a", "#f59e0b", "#dc2626"]
+              : "#0f172a",
+            borderRadius: chartType === "bar" ? 8 : 0,
+            borderWidth: 0
+          }]
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: chartType === "doughnut",
+              position: "bottom",
+              labels: {
+                boxWidth: 10,
+                boxHeight: 10,
+                color: "#475569"
+              }
+            }
+          },
+          scales: chartType === "bar" ? {
+            x: {
+              ticks: { color: "#64748b" },
+              grid: { display: false }
+            },
+            y: {
+              ticks: { color: "#64748b" },
+              grid: { color: "#e2e8f0" }
+            }
+          } : {}
+        }
       });
     });
   </script>

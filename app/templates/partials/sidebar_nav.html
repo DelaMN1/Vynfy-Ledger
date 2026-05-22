@@ -1,0 +1,86 @@
+{% set endpoint = request.endpoint or "" %}
+{% set setup_open = current_user.is_admin and setup_state and not setup_state.is_ready %}
+
+<nav class="sidebar-nav">
+  <div class="sidebar-nav__group">
+    <p class="sidebar-nav__label">Workspace</p>
+    <a class="sidebar-link {{ 'is-active' if endpoint == 'dashboard.overview' else '' }}" href="{{ url_for('dashboard.overview') }}">
+      <svg aria-hidden="true" class="sidebar-link__icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24">
+        <path d="M4 11.5 12 5l8 6.5"></path>
+        <path d="M6.5 10.5V19h11v-8.5"></path>
+      </svg>
+      <span>Dashboard</span>
+    </a>
+    <a class="sidebar-link {{ 'is-active' if endpoint in ['transactions.revenue_new', 'transactions.revenue_detail', 'transactions.revenue_edit'] else '' }}" href="{{ url_for('transactions.revenue_new') }}">
+      <svg aria-hidden="true" class="sidebar-link__icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24">
+        <path d="M12 4v16"></path>
+        <path d="M5 12h14"></path>
+      </svg>
+      <span>Revenue</span>
+    </a>
+    <a class="sidebar-link {{ 'is-active' if endpoint in ['transactions.expense_new', 'transactions.expense_detail', 'transactions.expense_edit', 'admin.approvals'] else '' }}" href="{{ url_for('transactions.expense_new') }}">
+      <svg aria-hidden="true" class="sidebar-link__icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24">
+        <path d="M5 12h14"></path>
+        <path d="M17 7 12 12l5 5"></path>
+      </svg>
+      <span>Expenses</span>
+    </a>
+    <a class="sidebar-link {{ 'is-active' if endpoint in ['transactions.transactions_list', 'transactions.transaction_detail', 'transactions.revenue_list', 'transactions.expense_list'] else '' }}" href="{{ url_for('transactions.transactions_list') }}">
+      <svg aria-hidden="true" class="sidebar-link__icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24">
+        <path d="M5 6.5h14"></path>
+        <path d="M5 12h14"></path>
+        <path d="M5 17.5h14"></path>
+      </svg>
+      <span>Transactions</span>
+    </a>
+    <a class="sidebar-link {{ 'is-active' if endpoint.startswith('reports.') else '' }}" href="{{ url_for('reports.index') }}">
+      <svg aria-hidden="true" class="sidebar-link__icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24">
+        <path d="M5 19V9"></path>
+        <path d="M12 19V5"></path>
+        <path d="M19 19v-7"></path>
+      </svg>
+      <span>Reports</span>
+    </a>
+    <a class="sidebar-link {{ 'is-active' if endpoint.startswith('reconciliation.') else '' }}" href="{{ url_for('reconciliation.index') }}">
+      <svg aria-hidden="true" class="sidebar-link__icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24">
+        <path d="M6 8h12"></path>
+        <path d="M6 12h8"></path>
+        <path d="M6 16h10"></path>
+      </svg>
+      <span>Reconciliation</span>
+    </a>
+  </div>
+
+  {% if current_user.is_admin %}
+    <div class="sidebar-nav__group">
+      <p class="sidebar-nav__label">Management</p>
+      <a class="sidebar-link {{ 'is-active' if endpoint == 'settings.users' else '' }}" href="{{ url_for('settings.users') }}">
+        <svg aria-hidden="true" class="sidebar-link__icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24">
+          <path d="M16 20v-1.2A3.8 3.8 0 0 0 12.2 15H7.8A3.8 3.8 0 0 0 4 18.8V20"></path>
+          <circle cx="10" cy="8" r="3"></circle>
+          <path d="M20 20v-1.2A3.8 3.8 0 0 0 17 15.1"></path>
+          <path d="M16.8 5.2A3 3 0 0 1 16.8 11"></path>
+        </svg>
+        <span>Users</span>
+      </a>
+      <a class="sidebar-link {{ 'is-active' if endpoint.startswith('settings.') and endpoint != 'settings.users' else '' }}" href="{{ url_for('settings.categories') }}">
+        <svg aria-hidden="true" class="sidebar-link__icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24">
+          <path d="M4 7h16"></path>
+          <path d="M4 12h16"></path>
+          <path d="M4 17h10"></path>
+        </svg>
+        <span>Settings</span>
+      </a>
+      {% if setup_open %}
+        <a class="sidebar-link {{ 'is-active' if endpoint.startswith('setup.') else '' }}" href="{{ url_for('setup.overview') }}">
+          <svg aria-hidden="true" class="sidebar-link__icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24">
+            <path d="M12 8v4"></path>
+            <path d="M12 16h.01"></path>
+            <path d="M10.3 3.8 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0Z"></path>
+          </svg>
+          <span>Setup</span>
+        </a>
+      {% endif %}
+    </div>
+  {% endif %}
+</nav>

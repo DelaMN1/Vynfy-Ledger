@@ -6,6 +6,9 @@ from app.models.base import TimestampMixin
 
 class UserSession(TimestampMixin, db.Model):
     __tablename__ = "user_sessions"
+    __table_args__ = (
+        db.Index("ix_user_sessions_revoked_at", "revoked_at"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)

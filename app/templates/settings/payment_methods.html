@@ -1,26 +1,27 @@
 {% extends "base.html" %}
 {% block page_title %}Settings - Payment Methods{% endblock %}
 {% block content %}
-  <div class="space-y-5">
+  <div class="space-y-6">
     {% include "settings/_nav.html" %}
-    <div class="grid gap-5 xl:grid-cols-[0.88fr_1.12fr]">
-      <form class="glass-card field-shell rounded-[2rem] p-7" method="post">
+    <div class="split-layout xl:grid-cols-[0.88fr_1.12fr]">
+      <form class="surface-card field-shell p-7" method="post">
         {{ form.hidden_tag() }}
-        <p class="section-kicker">Spend Rails</p>
-        <h3 class="mt-2 text-2xl font-semibold">Create payment method</h3>
-        <p class="mt-2 text-sm leading-6 text-slate-600">Capture the actual rail used for each transaction so approvals, accounting mappings, and reports stay accurate.</p>
+        <p class="table-card__eyebrow">Spend Rails</p>
+        <h3 class="table-card__title">Create payment method</h3>
+        <p class="table-card__subtitle">Capture the actual rail used for each transaction so approvals, accounting mappings, and reports stay accurate.</p>
         <div class="mt-6 space-y-4">
           <div>{{ form.name.label(class="mb-2 block text-sm font-medium") }}{{ form.name(class="w-full px-4 py-3") }}</div>
-          <button class="action-pill bg-slate-900 text-sm font-medium text-white" type="submit">Save payment method</button>
+          <button class="btn-primary" type="submit">Save payment method</button>
         </div>
       </form>
-      <div class="hero-panel p-7">
+      <div class="surface-card p-7">
         <div class="stack-header">
           <div class="stack-title">
-            <p class="section-kicker">Payment Library</p>
-            <h3 class="mt-2 text-2xl font-semibold">Available methods</h3>
+            <p class="table-card__eyebrow">Payment Library</p>
+            <h3 class="table-card__title">Available methods</h3>
+            <p class="table-card__subtitle">Operational rails available for transaction capture and reporting.</p>
           </div>
-          <div class="count-pill bg-white/75 text-sm text-slate-600">{{ methods|length }} methods</div>
+          <div class="count-pill">{{ pagination.total }} methods</div>
         </div>
         <div class="mt-6 grid gap-3 sm:grid-cols-2">
           {% for item in methods %}
@@ -28,9 +29,10 @@
               <p class="font-medium text-break">{{ item.name }}</p>
             </div>
           {% else %}
-            <p class="text-slate-500">No payment methods yet.</p>
+            <p class="table-muted">No payment methods yet.</p>
           {% endfor %}
         </div>
+        {% include "partials/pagination.html" %}
       </div>
     </div>
   </div>

@@ -4,6 +4,7 @@ import click
 from flask.cli import with_appcontext
 
 from app.extensions import db
+from app.models import AuditLog, UserSession
 from app.setup.services import (
     active_admin_count,
     account_balance_snapshots,
@@ -63,3 +64,34 @@ def register_cli(app) -> None:
         snapshots = recalculate_all_account_balances()
         db.session.commit()
         click.echo(f"accounts={len(snapshots)}")
+
+    @app.cli.group("maintenance")
+    def maintenance_group():
+        """Operational cleanup commands."""
+
+    @maintenance_group.command("purge-sessions")
+    @with_appcontext
+    def purge_sessions_command():
+        from app.utils.time import utcnow
+
+        deleted = (
+            UserSession.query.filter(
+                (UserSession.revoked_at.is_not(None)) | (UserSession.expires_at < utcnow())
+            )
+            .delete(synchronize_session=False)
+        )
+        db.session.commit()
+        click.echo(f"deleted_sessions={deleted}")
+
+    @maintenance_group.command("purge-audit-logs")
+    @click.option("--days", default=90, show_default=True, type=int, help="Delete audit logs older than this many days.")
+    @with_appcontext
+    def purge_audit_logs_command(days: int):
+        from datetime import timedelta
+
+        from app.utils.time import utcnow
+
+        cutoff = utcnow() - timedelta(days=days)
+        deleted = AuditLog.query.filter(AuditLog.created_at < cutoff).delete(synchronize_session=False)
+        db.session.commit()
+        click.echo(f"deleted_audit_logs={deleted}")

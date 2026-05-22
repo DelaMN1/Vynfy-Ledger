@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+from sqlalchemy import case, func
+
 from app.extensions import db
 from app.reconciliation.forms import ReconciliationForm
 from app.models import Account, ReconciliationSession, Transaction, User
@@ -18,25 +20,27 @@ def reconciliation_accounts() -> ChoiceOptions:
 
 
 def _system_balance(account: Account, period_end: date) -> Decimal:
-    inflows = sum(
-        Decimal(item.received_amount or 0)
-        for item in Transaction.query.filter_by(account_id=account.id, transaction_type=TransactionType.REVENUE.value)
+    inflows = (
+        db.session.query(func.coalesce(func.sum(Transaction.received_amount), 0))
         .filter(
+            Transaction.account_id == account.id,
+            Transaction.transaction_type == TransactionType.REVENUE.value,
             Transaction.transaction_date <= period_end,
             Transaction.deleted_at.is_(None),
             Transaction.status.in_(REVENUE_SETTLED_STATUSES),
         )
-        .all()
+        .scalar()
     )
-    outflows = sum(
-        Decimal(item.amount or 0)
-        for item in Transaction.query.filter_by(account_id=account.id, transaction_type=TransactionType.EXPENSE.value)
+    outflows = (
+        db.session.query(func.coalesce(func.sum(Transaction.amount), 0))
         .filter(
+            Transaction.account_id == account.id,
+            Transaction.transaction_type == TransactionType.EXPENSE.value,
             Transaction.transaction_date <= period_end,
             Transaction.deleted_at.is_(None),
             Transaction.status.in_(EXPENSE_SETTLED_STATUSES),
         )
-        .all()
+        .scalar()
     )
     return Decimal(account.opening_balance or 0) + inflows - outflows
 
@@ -104,22 +108,56 @@ def reconciliation_transactions(session: ReconciliationSession) -> list[Transact
 
 
 def reconciliation_summary(session: ReconciliationSession) -> dict[str, Decimal | int]:
-    items = reconciliation_transactions(session)
-    inflows = sum(
-        Decimal(item.received_amount or item.amount or 0)
-        for item in items
-        if item.transaction_type == TransactionType.REVENUE.value
+    summary_row = (
+        db.session.query(
+            func.count(Transaction.id),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            Transaction.transaction_type == TransactionType.REVENUE.value,
+                            func.coalesce(Transaction.received_amount, Transaction.amount, 0),
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            Transaction.transaction_type == TransactionType.EXPENSE.value,
+                            func.coalesce(Transaction.amount, 0),
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case((Transaction.is_reconciled.is_(True), 1), else_=0)
+                ),
+                0,
+            ),
+        )
+        .filter(
+            Transaction.account_id == session.account_id,
+            Transaction.transaction_date >= session.period_start,
+            Transaction.transaction_date <= session.period_end,
+            Transaction.deleted_at.is_(None),
+        )
+        .one()
     )
-    outflows = sum(
-        Decimal(item.amount or 0)
-        for item in items
-        if item.transaction_type == TransactionType.EXPENSE.value
-    )
-    reconciled_count = sum(1 for item in items if item.is_reconciled)
+    transaction_count = int(summary_row[0] or 0)
+    inflows = Decimal(summary_row[1] or 0)
+    outflows = Decimal(summary_row[2] or 0)
+    reconciled_count = int(summary_row[3] or 0)
     return {
-        "transaction_count": len(items),
+        "transaction_count": transaction_count,
         "reconciled_count": reconciled_count,
-        "unreconciled_count": len(items) - reconciled_count,
+        "unreconciled_count": transaction_count - reconciled_count,
         "inflows": inflows,
         "outflows": outflows,
         "net_activity": inflows - outflows,

@@ -1,76 +1,93 @@
 {% extends "base.html" %}
+{% import "partials/ui.html" as ui %}
 {% block page_title %}Reconciliation{% endblock %}
 {% block content %}
-  <div class="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-    <div class="glass-card field-shell rounded-[2rem] p-6">
-      <h3 class="text-xl font-semibold">Start a reconciliation session</h3>
-      <form class="mt-6 space-y-4" method="post" action="{{ url_for('reconciliation.start') }}">
-        {{ form.hidden_tag() }}
-        <div>{{ form.account_id.label(class="mb-2 block text-sm font-medium") }}{{ form.account_id(class="w-full px-4 py-3") }}</div>
-        <div class="grid gap-4 md:grid-cols-2">
-          <div>{{ form.period_start.label(class="mb-2 block text-sm font-medium") }}{{ form.period_start(class="w-full px-4 py-3") }}</div>
-          <div>{{ form.period_end.label(class="mb-2 block text-sm font-medium") }}{{ form.period_end(class="w-full px-4 py-3") }}</div>
-        </div>
-        <div>{{ form.statement_ending_balance.label(class="mb-2 block text-sm font-medium") }}{{ form.statement_ending_balance(class="w-full px-4 py-3") }}</div>
-        <div>{{ form.notes.label(class="mb-2 block text-sm font-medium") }}{{ form.notes(class="w-full px-4 py-3", rows="4") }}</div>
-        <button class="action-pill bg-slate-900 text-sm font-medium text-white" type="submit">Start reconciliation</button>
-      </form>
-    </div>
+  <div class="space-y-6">
+    {% call ui.page_header("Reconciliation", "Manual cash verification and variance review for selected accounts.", "Controls") %}
+      <a class="btn-secondary" href="{{ url_for('settings.accounts') }}">View Accounts</a>
+    {% endcall %}
 
-    <div class="space-y-5">
-      {% if active_session %}
-        <div class="glass-card rounded-[2rem] p-6">
-          <div class="stack-header">
-            <div class="stack-title">
-              <p class="text-sm text-slate-500">Active session</p>
-              <h3 class="mt-2 text-2xl font-semibold text-break">{{ active_session.account.name }}</h3>
-              <p class="mt-2 text-slate-500">{{ active_session.period_start }} to {{ active_session.period_end }}</p>
-            </div>
-            <div class="count-pill bg-slate-100 text-sm text-slate-600">Variance {{ active_session.difference|currency }}</div>
-          </div>
-          <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div class="data-row px-4 py-4"><p class="text-sm text-slate-500">Transactions</p><p class="mt-2 text-xl font-semibold">{{ summary.transaction_count }}</p></div>
-            <div class="data-row px-4 py-4"><p class="text-sm text-slate-500">Reconciled</p><p class="mt-2 text-xl font-semibold">{{ summary.reconciled_count }}</p></div>
-            <div class="data-row px-4 py-4"><p class="text-sm text-slate-500">Inflows</p><p class="mt-2 text-xl font-semibold">{{ summary.inflows|currency }}</p></div>
-            <div class="data-row px-4 py-4"><p class="text-sm text-slate-500">Outflows</p><p class="mt-2 text-xl font-semibold">{{ summary.outflows|currency }}</p></div>
+    <div class="split-layout xl:grid-cols-[0.95fr_1.05fr]">
+      <div class="surface-card field-shell p-6">
+        <div class="stack-header">
+          <div class="stack-title">
+            <p class="table-card__eyebrow">Session Setup</p>
+            <h3 class="table-card__title">Start a reconciliation session</h3>
+            <p class="table-card__subtitle">Select the account, date window, and statement ending balance to begin a controlled reconciliation pass.</p>
           </div>
         </div>
+        <form class="mt-6 space-y-4" method="post" action="{{ url_for('reconciliation.start') }}">
+          {{ form.hidden_tag() }}
+          <div>{{ form.account_id.label(class="mb-2 block text-sm font-medium") }}{{ form.account_id(class="w-full px-4 py-3") }}</div>
+          <div class="grid gap-4 md:grid-cols-2">
+            <div>{{ form.period_start.label(class="mb-2 block text-sm font-medium") }}{{ form.period_start(class="w-full px-4 py-3") }}</div>
+            <div>{{ form.period_end.label(class="mb-2 block text-sm font-medium") }}{{ form.period_end(class="w-full px-4 py-3") }}</div>
+          </div>
+          <div>{{ form.statement_ending_balance.label(class="mb-2 block text-sm font-medium") }}{{ form.statement_ending_balance(class="w-full px-4 py-3") }}</div>
+          <div>{{ form.notes.label(class="mb-2 block text-sm font-medium") }}{{ form.notes(class="w-full px-4 py-3", rows="4") }}</div>
+          <button class="btn-primary" type="submit">Start reconciliation</button>
+        </form>
+      </div>
 
-        <div class="glass-card rounded-[2rem] p-6">
-          <form method="post" action="{{ url_for('reconciliation.finalize', session_id=active_session.id) }}">
+      <div class="space-y-5">
+        {% if active_session %}
+          <div class="surface-card p-6">
             <div class="stack-header">
-              <h3 class="text-lg font-semibold">Match transactions</h3>
-              <button class="action-pill bg-emerald-600 text-sm font-medium text-white" type="submit">Finalize reconciliation</button>
+              <div class="stack-title">
+                <p class="table-card__eyebrow">Active Session</p>
+                <h3 class="table-card__title text-break">{{ active_session.account.name }}</h3>
+                <p class="table-card__subtitle">{{ active_session.period_start }} to {{ active_session.period_end }}</p>
+              </div>
+              <div class="count-pill">Variance {{ active_session.difference|currency }}</div>
             </div>
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="mt-6 space-y-3">
-              {% for item in transactions %}
-                <label class="data-row block px-4 py-4">
-                  <div class="split-row">
-                    <div class="split-row__primary flex min-w-0 gap-3">
-                      <input class="mt-1 flex-none" type="checkbox" name="transaction_ids" value="{{ item.id }}" {% if item.is_reconciled %}checked{% endif %}>
-                      <div class="min-w-0">
-                        <p class="font-medium text-break">{{ item.title }}</p>
-                        <p class="mt-1 text-sm text-slate-500 text-break">{{ item.transaction_type|title }} / {{ item.status }} / {{ item.transaction_date.strftime('%d %b %Y') }}</p>
+            <div class="metric-grid mt-6">
+              {{ ui.metric_card("Transactions", summary.transaction_count, "Ledger records inside the selected period.", "neutral", "TX") }}
+              {{ ui.metric_card("Reconciled", summary.reconciled_count, "Records already matched into this session.", "revenue", "RC") }}
+              {{ ui.metric_card("Inflows", summary.inflows|currency, "Recorded cash entering the account period.", "revenue", "IN") }}
+              {{ ui.metric_card("Outflows", summary.outflows|currency, "Recorded cash leaving the account period.", "expense", "OU") }}
+            </div>
+          </div>
+
+          <div class="surface-card p-6">
+            <form method="post" action="{{ url_for('reconciliation.finalize', session_id=active_session.id) }}">
+              <div class="stack-header">
+                <div class="stack-title">
+                  <p class="table-card__eyebrow">Matching</p>
+                  <h3 class="table-card__title">Match transactions</h3>
+                  <p class="table-card__subtitle">Confirm which ledger entries reconcile to the statement and finalize once the variance is explained.</p>
+                </div>
+                <button class="btn-primary" type="submit">Finalize</button>
+              </div>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="mt-6 space-y-3">
+                {% for item in transactions %}
+                  <label class="data-row block px-4 py-4">
+                    <div class="split-row">
+                      <div class="split-row__primary flex min-w-0 gap-3">
+                        <input class="mt-1 flex-none" type="checkbox" name="transaction_ids" value="{{ item.id }}" {% if item.is_reconciled %}checked{% endif %}>
+                        <div class="min-w-0">
+                          <p class="font-medium text-break">{{ item.title }}</p>
+                          <p class="mt-1 table-muted text-break">{{ item.transaction_type|title }} / {{ item.status }} / {{ item.transaction_date.strftime('%d %b %Y') }}</p>
+                        </div>
+                      </div>
+                      <div class="split-row__secondary text-left sm:text-right">
+                        <p class="font-medium">{{ item.amount|currency }}</p>
+                        <p class="mt-1 text-sm {{ 'text-emerald-700' if item.is_reconciled else 'text-slate-500' }}">{{ "Reconciled" if item.is_reconciled else "Open" }}</p>
                       </div>
                     </div>
-                    <div class="split-row__secondary text-left sm:text-right">
-                      <p class="font-medium">{{ item.amount|currency }}</p>
-                      <p class="mt-1 text-sm {{ 'text-emerald-700' if item.is_reconciled else 'text-slate-500' }}">{{ "Reconciled" if item.is_reconciled else "Open" }}</p>
-                    </div>
-                  </div>
-                </label>
-              {% else %}
-                <p class="text-slate-500">No transactions found for this period.</p>
-              {% endfor %}
-            </div>
-          </form>
-        </div>
-      {% else %}
-        <div class="glass-card rounded-[2rem] p-6">
-          <p class="text-slate-500">No reconciliation session selected yet.</p>
-        </div>
-      {% endif %}
+                  </label>
+                {% else %}
+                  {{ ui.empty_state("No transactions in this period", "No ledger entries match the selected reconciliation window.") }}
+                {% endfor %}
+              </div>
+            </form>
+          </div>
+        {% else %}
+          <div class="surface-card p-6">
+            {{ ui.empty_state("No reconciliation session selected", "Start a session on the left to load account-specific transactions and variance controls.") }}
+          </div>
+        {% endif %}
+      </div>
     </div>
   </div>
 {% endblock %}

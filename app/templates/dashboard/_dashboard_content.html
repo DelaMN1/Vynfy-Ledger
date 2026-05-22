@@ -1,19 +1,12 @@
-<div class="grid gap-5 lg:grid-cols-3">
-  <div class="metric-tile is-hero">
-    <p class="eyebrow text-slate-300">Revenue This Month</p>
-    <p class="metric-value mt-4 text-3xl font-semibold text-white">{{ summary.revenue_this_month|currency }}</p>
-    <p class="mt-3 text-sm text-slate-300">Revenue recorded in the current calendar month.</p>
-  </div>
-  <div class="metric-tile is-soft">
-    <p class="eyebrow text-slate-500">Expenses This Month</p>
-    <p class="metric-value mt-4 text-3xl font-semibold metric-accent-rose">{{ summary.expenses_this_month|currency }}</p>
-    <p class="mt-3 text-sm text-slate-500">Expenses recorded in the current calendar month.</p>
-  </div>
-  <div class="metric-tile is-soft">
-    <p class="eyebrow text-slate-500">Net This Month</p>
-    <p class="metric-value mt-4 text-3xl font-semibold">{{ summary.net_cash_flow|currency }}</p>
-    <p class="mt-3 text-sm text-slate-500">Revenue minus expenses for the current month.</p>
-  </div>
+{% import "partials/ui.html" as ui %}
+{% set fourth_metric_label = "Active Accounts" if current_user.is_admin else "Recent Records" %}
+{% set fourth_metric_value = active_accounts|length if current_user.is_admin else recent_transactions|length %}
+{% set fourth_metric_support = "Configured cash sources available for reporting and reconciliation." if current_user.is_admin else "Transactions shown in the current dashboard snapshot." %}
+<div class="metric-grid">
+  {{ ui.metric_card("Revenue This Month", summary.revenue_this_month|currency, "Revenue recorded in " ~ month_label ~ ".", "revenue", "RV") }}
+  {{ ui.metric_card("Expenses This Month", summary.expenses_this_month|currency, "Expenses settled in the same period.", "expense", "EX") }}
+  {{ ui.metric_card("Net This Month", summary.net_cash_flow|currency, "Revenue minus expenses for the active month.", "neutral", "NF") }}
+  {{ ui.metric_card(fourth_metric_label, fourth_metric_value, fourth_metric_support, "warning", "OP") }}
 </div>
 
 {% if setup_state and not setup_state.is_ready %}
@@ -36,29 +29,127 @@
   </div>
 {% endif %}
 
-<div class="mt-6 glass-card rounded-[2rem] p-6">
-  <div class="stack-header">
-    <div class="stack-title">
-      <p class="section-kicker">History</p>
-      <h3 class="mt-2 text-2xl font-semibold">Recent activity</h3>
+{% set bar_max = namespace(value=0) %}
+{% for amount in [summary.revenue_this_month, summary.expenses_this_month, summary.net_cash_flow|abs] %}
+  {% if amount > bar_max.value %}
+    {% set bar_max.value = amount %}
+  {% endif %}
+{% endfor %}
+{% set expense_max = namespace(value=0) %}
+{% for item in recent_transactions if item.transaction_type == 'expense' %}
+  {% if item.amount > expense_max.value %}
+    {% set expense_max.value = item.amount %}
+  {% endif %}
+{% endfor %}
+
+<div class="dashboard-grid">
+  <div class="surface-card p-6">
+    <div class="card-header">
+      <div>
+        <p class="table-card__eyebrow">Performance</p>
+        <h3 class="table-card__title">Cash flow snapshot</h3>
+        <p class="table-card__subtitle">Current month movement across revenue, spend, and net position.</p>
+      </div>
+      <div class="count-pill">{{ month_label }}</div>
     </div>
-    <a class="action-pill border border-slate-300 bg-white text-sm text-slate-600" href="{{ url_for('transactions.transactions_list') }}">View history</a>
+    <div class="performance-bars mt-6">
+      <div>
+        <div class="performance-bar__header">
+          <span class="performance-bar__label">Revenue</span>
+          <span class="performance-bar__value">{{ summary.revenue_this_month|currency }}</span>
+        </div>
+        <div class="progress-track mt-3">
+          <span class="progress-track__revenue" style="width: {{ 0 if bar_max.value == 0 else ((summary.revenue_this_month / bar_max.value) * 100)|round(1) }}%"></span>
+        </div>
+      </div>
+      <div>
+        <div class="performance-bar__header">
+          <span class="performance-bar__label">Expenses</span>
+          <span class="performance-bar__value">{{ summary.expenses_this_month|currency }}</span>
+        </div>
+        <div class="progress-track mt-3">
+          <span class="progress-track__expense" style="width: {{ 0 if bar_max.value == 0 else ((summary.expenses_this_month / bar_max.value) * 100)|round(1) }}%"></span>
+        </div>
+      </div>
+      <div>
+        <div class="performance-bar__header">
+          <span class="performance-bar__label">Net cash flow</span>
+          <span class="performance-bar__value">{{ summary.net_cash_flow|currency }}</span>
+        </div>
+        <div class="progress-track mt-3">
+          <span class="progress-track__neutral" style="width: {{ 0 if bar_max.value == 0 else ((summary.net_cash_flow|abs / bar_max.value) * 100)|round(1) }}%"></span>
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="mt-5 overflow-x-auto">
-    <table class="min-w-full text-sm">
-      <thead class="text-left text-slate-500">
-        <tr><th class="pb-3">Entry</th><th class="pb-3">Type</th><th class="pb-3">Date</th><th class="pb-3">Amount</th></tr>
+
+  <div class="surface-card p-6">
+    <div class="card-header">
+      <div>
+        <p class="table-card__eyebrow">Allocation</p>
+        <h3 class="table-card__title">Expense activity mix</h3>
+        <p class="table-card__subtitle">Most recent expense entries grouped by category or description.</p>
+      </div>
+    </div>
+    <div class="allocation-bars mt-6">
+      {% for item in recent_transactions if item.transaction_type == 'expense' %}
+        <div>
+          <div class="allocation-bar__header">
+            <span class="allocation-bar__label text-break">{{ item.category.name if item.category else item.title }}</span>
+            <span class="allocation-bar__value">{{ item.amount|currency }}</span>
+          </div>
+          <div class="progress-track mt-3">
+            <span class="progress-track__warning" style="width: {{ 0 if expense_max.value == 0 else ((item.amount / expense_max.value) * 100)|round(1) }}%"></span>
+          </div>
+        </div>
+      {% else %}
+        <p class="table-card__subtitle">No recent expense activity yet. New expenses will appear here as they are submitted.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="surface-card p-6">
+  <div class="card-header">
+    <div>
+      <p class="table-card__eyebrow">Recent activity</p>
+      <h3 class="table-card__title">Recent Transactions</h3>
+      <p class="table-card__subtitle">Verified financial activity across the latest ledger entries.</p>
+    </div>
+    <a class="btn-secondary" href="{{ url_for('transactions.transactions_list') }}">View all</a>
+  </div>
+  <div class="table-scroll mt-6">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Title / Counterparty</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Date</th>
+          <th class="table-amount">Amount</th>
+          <th>Actions</th>
+        </tr>
       </thead>
-      <tbody class="divide-y divide-slate-100">
+      <tbody>
         {% for item in recent_transactions %}
-          <tr class="cursor-pointer hover:bg-slate-50" data-row-link="{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}" tabindex="0" role="link">
-            <td class="py-4 text-break">{{ item.counterparty or item.title }}</td>
-            <td class="py-4 capitalize">{{ item.transaction_type }}</td>
-            <td class="py-4">{{ item.transaction_date.strftime('%d %b %Y') }}</td>
-            <td class="py-4">{{ item.amount|currency }}</td>
+          {% set status = item.status %}
+          <tr data-row-link="{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}" tabindex="0" role="link">
+            <td>
+              <div class="font-semibold text-break">{{ item.counterparty or item.title }}</div>
+              {% if item.counterparty and item.title %}
+                <div class="mt-1 table-muted text-break">{{ item.title }}</div>
+              {% endif %}
+            </td>
+            <td class="capitalize">{{ item.transaction_type }}</td>
+            <td>{% include "partials/status_badge.html" %}</td>
+            <td>{{ item.transaction_date.strftime('%d %b %Y') }}</td>
+            <td class="table-amount">{{ item.amount|currency }}</td>
+            <td><a class="btn-secondary" href="{{ url_for('transactions.transaction_detail', transaction_id=item.id) }}">Open</a></td>
           </tr>
         {% else %}
-          <tr><td class="py-6 text-slate-500" colspan="4">No entries yet. Add revenue or expense to start building history.</td></tr>
+          <tr>
+            <td colspan="6">{{ ui.empty_state("No transactions yet", "Add revenue or expense to start building a usable ledger history.") }}</td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
@@ -66,14 +157,15 @@
 </div>
 
 {% if current_user.is_admin %}
-  <div class="mt-6 grid gap-5 xl:grid-cols-2">
-    <div class="glass-card rounded-[2rem] p-6">
+  <div class="grid gap-5 xl:grid-cols-2">
+    <div class="surface-card p-6">
       <div class="stack-header">
         <div class="stack-title">
-          <p class="section-kicker">Accounts</p>
-          <h3 class="mt-2 text-2xl font-semibold">Active accounts</h3>
+          <p class="table-card__eyebrow">Accounts</p>
+          <h3 class="table-card__title">Active accounts</h3>
+          <p class="table-card__subtitle">Configured cash sources currently available in the ledger.</p>
         </div>
-        <a class="action-pill border border-slate-300 bg-white text-sm text-slate-600" href="{{ url_for('settings.accounts') }}">Manage accounts</a>
+        <a class="btn-secondary" href="{{ url_for('settings.accounts') }}">Manage accounts</a>
       </div>
       <div class="mt-5 data-stack">
         {% for item in active_accounts %}
@@ -81,11 +173,11 @@
             <div class="split-row">
               <div class="split-row__primary">
                 <p class="font-medium text-break">{{ item.name }}</p>
-                <p class="mt-1 text-sm text-slate-500">{{ item.type|replace('_', ' ')|title }}</p>
+                <p class="mt-1 table-muted">{{ item.type|replace('_', ' ')|title }}</p>
               </div>
               <div class="split-row__secondary text-left sm:text-right">
                 <p class="font-medium">{{ item.opening_balance|currency }}</p>
-                <p class="mt-1 text-sm text-slate-500">{{ item.currency_code }}</p>
+                <p class="mt-1 table-muted">{{ item.currency_code }}</p>
               </div>
             </div>
           </div>
@@ -95,13 +187,14 @@
       </div>
     </div>
 
-    <div class="glass-card rounded-[2rem] p-6">
+    <div class="surface-card p-6">
       <div class="stack-header">
         <div class="stack-title">
-          <p class="section-kicker">Users</p>
-          <h3 class="mt-2 text-2xl font-semibold">Active users</h3>
+          <p class="table-card__eyebrow">Operators</p>
+          <h3 class="table-card__title">Active users</h3>
+          <p class="table-card__subtitle">Team members currently able to operate inside the ledger.</p>
         </div>
-        <a class="action-pill border border-slate-300 bg-white text-sm text-slate-600" href="{{ url_for('settings.users') }}">Manage users</a>
+        <a class="btn-secondary" href="{{ url_for('settings.users') }}">Manage users</a>
       </div>
       <div class="mt-5 grid gap-4 md:grid-cols-2">
         {% for item in active_users %}

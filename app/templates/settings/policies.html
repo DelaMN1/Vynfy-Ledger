@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block page_title %}Settings - Policies{% endblock %}
 {% block content %}
-  <div class="space-y-5">
+  <div class="space-y-6">
     {% include "settings/_nav.html" %}
-    <div class="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-      <form class="glass-card field-shell rounded-[2rem] p-7" method="post">
+    <div class="split-layout xl:grid-cols-[0.95fr_1.05fr]">
+      <form class="surface-card field-shell p-7" method="post">
         {{ form.hidden_tag() }}
-        <p class="section-kicker">Approval Logic</p>
-        <h3 class="mt-2 text-2xl font-semibold">Create spend policy</h3>
-        <p class="mt-2 text-sm leading-6 text-slate-600">Decide which transactions need receipts, notes, caps, or budget blocking before they move into approval and payment.</p>
+        <p class="table-card__eyebrow">Approval Logic</p>
+        <h3 class="table-card__title">Create spend policy</h3>
+        <p class="table-card__subtitle">Decide which transactions need receipts, notes, caps, or budget blocking before they move into approval and payment.</p>
         <div class="mt-6 grid gap-4 md:grid-cols-2">
           <div class="md:col-span-2">{{ form.name.label(class="mb-2 block text-sm font-medium") }}{{ form.name(class="w-full px-4 py-3") }}</div>
           <div>{{ form.transaction_type.label(class="mb-2 block text-sm font-medium") }}{{ form.transaction_type(class="w-full px-4 py-3") }}</div>
@@ -21,29 +21,31 @@
           <label class="stacked-check md:col-span-2"><span>{{ form.block_on_over_budget() }}</span><span class="text-sm font-medium">Block when the matched budget is exceeded</span></label>
           <div class="md:col-span-2">{{ form.description.label(class="mb-2 block text-sm font-medium") }}{{ form.description(class="w-full px-4 py-3", rows="4") }}</div>
         </div>
-        <button class="action-pill mt-6 bg-slate-900 text-sm font-medium text-white" type="submit">Save policy</button>
+        <button class="btn-primary mt-6" type="submit">Save policy</button>
       </form>
-      <div class="glass-card rounded-[2rem] p-7">
+      <div class="surface-card p-7">
         <div class="stack-header">
           <div class="stack-title">
-            <p class="section-kicker">Policy Stack</p>
-            <h3 class="mt-2 text-2xl font-semibold">Spend rules</h3>
+            <p class="table-card__eyebrow">Policy Stack</p>
+            <h3 class="table-card__title">Spend rules</h3>
+            <p class="table-card__subtitle">Current policies shaping expense review and policy exceptions.</p>
           </div>
-          <div class="count-pill bg-slate-100 text-sm text-slate-600">{{ policies|length }} rules</div>
+          <div class="count-pill">{{ pagination.total }} rules</div>
         </div>
         <div class="mt-6 data-stack">
           {% for item in policies %}
             <div class="data-row px-5 py-4">
               <div class="split-row">
                 <p class="split-row__primary font-medium text-break">{{ item.name }}</p>
-                <p class="split-row__secondary text-sm text-slate-500">{{ item.max_amount|currency if item.max_amount else "No cap" }}</p>
+                <p class="split-row__secondary table-muted">{{ item.max_amount|currency if item.max_amount else "No cap" }}</p>
               </div>
-              <p class="mt-2 text-sm text-slate-500 text-break">{{ item.description or "No policy notes." }}</p>
+              <p class="mt-2 table-muted text-break">{{ item.description or "No policy notes." }}</p>
             </div>
           {% else %}
-            <p class="text-slate-500">No spend policies configured yet.</p>
+            <p class="table-muted">No spend policies configured yet.</p>
           {% endfor %}
         </div>
+        {% include "partials/pagination.html" %}
       </div>
     </div>
   </div>
