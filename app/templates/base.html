@@ -28,7 +28,7 @@
           {% include "partials/sidebar_nav.html" %}
           <form class="sidebar-shell__logout" method="post" action="{{ url_for('auth.logout') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn-secondary btn-secondary--full" type="submit">Logout</button>
+            <button class="btn-secondary btn-secondary--full btn-danger" type="submit">Logout</button>
           </form>
         </aside>
         <main class="app-shell__main">
